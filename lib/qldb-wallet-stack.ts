@@ -60,7 +60,8 @@ export class QldbWalletStack extends Stack {
       statements: [qldbStreamInlinePolicyStatement],
     });
     const qldbStreamRole = new iam.Role(this, "qldb-stream-role", {
-      assumedBy: new iam.ServicePrincipal("qldb"),
+      // Ref: ServicePrincipal: https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_iam.ServicePrincipal.html
+      assumedBy: new iam.ServicePrincipal("qldb.amazonaws.com"),
       inlinePolicies: {
         qldb_inline_policy: qldbStreamInlinePolicyDocument,
       },
@@ -103,7 +104,7 @@ export class QldbWalletStack extends Stack {
 
     // Create Lambda role and policies
     const lambdaQldbRole = new iam.Role(this, "lambda-qldb-role", {
-      assumedBy: new iam.ServicePrincipal("lambda"),
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
     lambdaQldbRole.addToPolicy(qldbAccessPolicy);
     lambdaQldbRole.addManagedPolicy(
@@ -111,7 +112,7 @@ export class QldbWalletStack extends Stack {
     );
 
     const lambdaDdbRole = new iam.Role(this, "lambda-ddb-role", {
-      assumedBy: new iam.ServicePrincipal("lambda"),
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
     lambdaDdbRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName("AWSLambdaExecute"),
