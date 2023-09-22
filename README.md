@@ -1,4 +1,4 @@
-# Welcome to your CDK TypeScript project
+# QLDB DynamoDB Serverless Wallet
 
 This is a blank project for CDK development with TypeScript.
 
@@ -29,7 +29,7 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
    - `cdk synth`
    - `cdk deploy`
 
-This is NodeJs(Typescript) repo based on [AWS Sample serverless-wallet (Python)](https://github.com/aws-samples/serverless-wallet)
+## This is NodeJs(Typescript) repo based on [AWS Sample serverless-wallet (Python)](https://github.com/aws-samples/serverless-wallet)
 
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 SPDX-License-Identifier: MIT-0
