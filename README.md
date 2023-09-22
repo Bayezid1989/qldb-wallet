@@ -57,8 +57,9 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
    - `cdk bootstrap aws://ACCOUNT-NUMBER/REGION` --> Error: "no credentials have been configured" --> Look into the hidden files ~/.aws/config and ~/.aws/credentials, then copy and paste the value from "Coomand line or programmatic access" popup SSO login screen.
 
 2. Folow [instruction to deploy CDK](https://docs.aws.amazon.com/cdk/v2/guide/hello_world.html)
+
    - `cdk init app --language typescript`
    - `npm run build`
    - `cdk ls`
    - `cdk synth`
-   - `cdk deploy`
+   - `cdk deploy` --> Error: "Ledger is not yet active" --> Deploy only creating QLDB and DynamoDB portions first, then after confirming Ledger is active, deploy all.
