@@ -1,6 +1,7 @@
 # QLDB DynamoDB Serverless Wallet
 
 This is NodeJs(Typescript) repo based on [AWS Sample serverless-wallet (Python)](https://github.com/aws-samples/serverless-wallet)
+
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 SPDX-License-Identifier: MIT-0
 
