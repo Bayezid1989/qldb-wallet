@@ -22,7 +22,6 @@ const LOG_LEVEL = config.logLevel;
 const QLDB_TABLE_NAME = config.qldbTableName;
 const LOG_RETENTION = config.logRetention;
 const SHARD_COUNT = config.shardCount;
-const TTL_ATTRIBUTE = config.ttlAttribute;
 const EXPIRE_AFTER_DAYS = config.expireAfterDays;
 
 export class QldbWalletStack extends Stack {
@@ -83,7 +82,7 @@ export class QldbWalletStack extends Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       sortKey: { name: "txTime", type: dynamodb.AttributeType.STRING },
       removalPolicy: RemovalPolicy.DESTROY,
-      timeToLiveAttribute: TTL_ATTRIBUTE,
+      timeToLiveAttribute: "expire_timestamp",
     });
 
     // Create IAM Roles and policies for Lambda functions
@@ -215,8 +214,7 @@ export class QldbWalletStack extends Stack {
     lambdaGetTransactions.addEnvironment("DDB_TABLE_NAME", ddbTableName);
     lambdaStreamTransactions.addEnvironment("DDB_TABLE_NAME", ddbTableName);
 
-    if (TTL_ATTRIBUTE && EXPIRE_AFTER_DAYS) {
-      lambdaStreamTransactions.addEnvironment("TTL_ATTRIBUTE", TTL_ATTRIBUTE);
+    if (EXPIRE_AFTER_DAYS) {
       lambdaStreamTransactions.addEnvironment(
         "EXPIRE_AFTER_DAYS",
         String(EXPIRE_AFTER_DAYS),

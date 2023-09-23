@@ -6,13 +6,13 @@ import {
   KinesisStreamRecord,
   KinesisStreamRecordPayload,
 } from "aws-lambda";
+import { parseRevisionDetails } from "./utils";
+import { marshall } from "@aws-sdk/util-dynamodb";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 const client = new DynamoDBClient();
 const TABLE_NAME = process.env.DDB_TABLE_NAME || "";
 const EXPIRE_AFTER_DAYS = process.env.EXPIRE_AFTER_DAYS;
-const TTL_ATTRIBUTE = process.env.TTL_ATTRIBUTE;
-
 const REVISION_DETAILS_RECORD_TYPE = "REVISION_DETAILS";
 const computeChecksums = true;
 
@@ -35,35 +35,35 @@ const promiseDeaggregate = (
     });
   });
 
-// Ref: ion-js DOM API struct example: https://github.com/amazon-ion/ion-js/blob/master/src/dom/README.md#struct-example-1
-const getTableInfoFromRevisionRecord = (revisionRecord: dom.Value) => {
-  //  Retrieves the table information block from revision Revision Record
-  //  Table information contains the table name and table id
-  //  Parameters:
-  //    revision_record (string): The ion representation of Revision record from QLDB Streams
-  const tableInfo = revisionRecord.get("payload", "tableInfo");
-  if (tableInfo) {
-    return tableInfo;
-  }
-  return null;
-};
+// // Ref: ion-js DOM API struct example: https://github.com/amazon-ion/ion-js/blob/master/src/dom/README.md#struct-example-1
+// const getTableInfoFromRevisionRecord = (revisionRecord: dom.Value) => {
+//   //  Retrieves the table information block from revision Revision Record
+//   //  Table information contains the table name and table id
+//   //  Parameters:
+//   //    revision_record (string): The ion representation of Revision record from QLDB Streams
+//   const tableInfo = revisionRecord.get("payload", "tableInfo");
+//   if (tableInfo) {
+//     return tableInfo;
+//   }
+//   return null;
+// };
 
-const getDataMetadataFromRevisionRecord = (revisionRecord: dom.Value) => {
-  let revisionData: dom.Value | null = null;
-  let revisionMetadata: dom.Value | null = null;
+// const getDataMetadataFromRevisionRecord = (revisionRecord: dom.Value) => {
+//   let revisionData: dom.Value | null = null;
+//   let revisionMetadata: dom.Value | null = null;
 
-  const revision = revisionRecord.get("payload", "revision");
-  if (revision) {
-    if (revision.get("data")) {
-      revisionData = revision.get("data");
-    }
-    if (revision.get("metadata")) {
-      revisionMetadata = revision.get("metadata");
-    }
-  }
+//   const revision = revisionRecord.get("payload", "revision");
+//   if (revision) {
+//     if (revision.get("data")) {
+//       revisionData = revision.get("data");
+//     }
+//     if (revision.get("metadata")) {
+//       revisionMetadata = revision.get("metadata");
+//     }
+//   }
 
-  return [revisionData, revisionMetadata];
-};
+//   return [revisionData, revisionMetadata];
+// };
 
 const filteredRecordsGenerator = (
   kinesisDeaggregateRecords: UserRecord[],
@@ -81,30 +81,30 @@ const filteredRecordsGenerator = (
       ionRecord.get("recordType")?.stringValue() ===
         REVISION_DETAILS_RECORD_TYPE
     ) {
-      const tableInfo = getTableInfoFromRevisionRecord(ionRecord);
-      const tableName = tableInfo?.get("tableName")?.stringValue();
+      const parsedRecord = parseRevisionDetails(ionRecord);
+      // const tableInfo = getTableInfoFromRevisionRecord(ionRecord);
+      // const tableName = tableInfo?.get("tableName")?.stringValue();
+      const tableInfo = parsedRecord?.payload?.tableInfo;
 
       if (
         !tableNames ||
-        (tableInfo && tableName && tableNames.includes(tableName))
+        (tableInfo &&
+          tableInfo?.tableName &&
+          tableNames.includes(tableInfo?.tableName))
       ) {
-        const [revisionData, revisionMetadata] =
-          getDataMetadataFromRevisionRecord(ionRecord);
+        // const [revisionData, revisionMetadata] =
+        //   getDataMetadataFromRevisionRecord(ionRecord);
 
-        acc.push({
-          tableInfo,
-          revisionData,
-          revisionMetadata,
-        });
+        acc.push(parsedRecord?.payload);
       }
     }
 
     return acc;
-  }, [] as { tableInfo: dom.Value | null; revisionData: dom.Value | null; revisionMetadata: dom.Value | null }[]);
+  }, [] as ReturnType<typeof parseRevisionDetails>["payload"][]);
 
 const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
 
-export const lambdaHandler: Handler = async (event) => {
+export const handler: Handler = async (event) => {
   const rawKinesisRecords: KinesisStreamRecord[] = event.Records;
 
   // Deaggregate all records in one call
@@ -120,35 +120,50 @@ export const lambdaHandler: Handler = async (event) => {
   for (const record of filteredRecordsGenerator(userRecords, [
     QLDB_TABLE_NAME,
   ])) {
-    const tableName = record.tableInfo?.get("tableName")?.stringValue();
-    const revisionData = record.revisionData;
-    const revisionMetadata = record.revisionMetadata;
+    // const tableName = record.tableInfo?.get("tableName")?.stringValue();
+    // const revisionData = record.revisionData;
+    // const revisionMetadata = record.revisionMetadata;
 
-    if (revisionData) {
-      if (tableName === QLDB_TABLE_NAME) {
+    if (record?.revision && record?.tableInfo) {
+      const { data, metadata } = record.revision;
+      const { tableName } = record.tableInfo;
+      if (data && metadata && tableName === QLDB_TABLE_NAME) {
+        const txDate = metadata.txTime?.getDate();
+        const ddbItem: typeof data & {
+          txId: string | undefined | null;
+          txTime: string | undefined | null; // Must be ISO 8601
+          timestamp: number | undefined; // UNIX timestamp
+          expire_timestamp?: number; // UNIX timestamp
+        } = {
+          ...data,
+          txId: metadata.txId,
+          txTime: txDate?.toISOString(),
+          timestamp: txDate?.getTime(),
+        };
+
         // Ref: dumpText: https://github.com/amazon-ion/ion-js/blob/master/src/dom/README.md#iondumpbinary-iondumptext-and-iondumpprettytext
         // Or Down-converting to JSON? https://amazon-ion.github.io/ion-docs/guides/cookbook.html
-        const ddbItem = JSON.parse(dumpText(revisionData), (key, value) =>
-          typeof value === "string" && /^[\d-]+T[\d:.]+Z$/.test(value)
-            ? new Date(value)
-            : value,
-        );
-        const stringDatetime = dumpText(revisionMetadata?.get("txTime"))?.split(
-          " ",
-        )?.[1];
-        const parsedDatetime = new Date(stringDatetime);
-        const unixTime = Math.floor(parsedDatetime.getTime() / 1000);
-        ddbItem.txTime = stringDatetime;
-        ddbItem.txId = revisionMetadata?.get("txId");
-        ddbItem.timestamp = unixTime;
-        if (TTL_ATTRIBUTE && EXPIRE_AFTER_DAYS) {
-          ddbItem[TTL_ATTRIBUTE] =
-            unixTime + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
+        // const ddbItem = JSON.parse(dumpText(revisionData), (key, value) =>
+        //   typeof value === "string" && /^[\d-]+T[\d:.]+Z$/.test(value)
+        //     ? new Date(value)
+        //     : value,
+        // );
+        // const stringDatetime = dumpText(revisionMetadata?.get("txTime"))?.split(
+        //   " ",
+        // )?.[1];
+        // const parsedDatetime = new Date(stringDatetime);
+        // const unixTime = Math.floor(parsedDatetime.getTime() / 1000);
+        // ddbItem.txTime = stringDatetime;
+        // ddbItem.txId = revisionMetadata?.get("txId");
+        // ddbItem.timestamp = unixTime;
+        if (EXPIRE_AFTER_DAYS && ddbItem.timestamp) {
+          ddbItem.expire_timestamp =
+            ddbItem.timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
         }
 
         const putCommand = new PutItemCommand({
           TableName: TABLE_NAME,
-          Item: ddbItem,
+          Item: marshall(ddbItem),
         });
 
         try {

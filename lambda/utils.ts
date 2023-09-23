@@ -68,3 +68,68 @@ export const getQldbAccountBalance = async (
   const firstDoc2 = res2.getResultList()[0];
   return firstDoc2.get("balance")?.numberValue() || 0;
 };
+
+export const parseRevisionDetails = (ionRecord: dom.Value) => {
+  const payload = ionRecord.get("payload");
+  const tableInfo = payload?.get("tableInfo");
+  const revision = payload?.get("revision");
+  const blockAddress = revision?.get("blockAddress");
+  const data = revision?.get("data");
+  const metadata = revision?.get("metadata");
+
+  return {
+    qldbStreamArn: ionRecord.get("qldbStreamArn")?.stringValue(),
+    recordType: ionRecord.get("recordType")?.stringValue(),
+    payload: {
+      tableInfo: {
+        tableName: tableInfo?.get("tableName")?.stringValue(),
+        tableId: tableInfo?.get("tableId")?.stringValue(),
+      },
+      revision: {
+        blockAddress: {
+          strandId: blockAddress?.get("strandId")?.stringValue(),
+          sequenceNo: blockAddress?.get("sequenceNo")?.numberValue(),
+        },
+        hash: revision?.get("hash")?.stringValue(),
+        data: {
+          accountId: data?.get("accountId")?.stringValue(),
+          balance: data?.get("balance")?.numberValue(),
+        },
+        metadata: {
+          id: metadata?.get("id")?.stringValue(),
+          version: metadata?.get("version")?.numberValue(),
+          txTime: metadata?.get("txTime")?.timestampValue(),
+          txId: metadata?.get("txId")?.stringValue(),
+        },
+      },
+    },
+  };
+};
+
+//  Ion record: {
+//   qldbStreamArn: "arn:aws:qldb:ap-northeast-1:670756400362:stream/test-wallet/0FyCS5aYSysK7aD7h8wvp3",
+//   recordType: "REVISION_DETAILS",
+//   payload: {
+//     tableInfo: {
+//       tableName: "Wallet",
+//       tableId: "AYj94Ipn0re4Fr2PDgadpl"
+//     },
+//     revision: {
+//       blockAddress: {
+//         strandId: "A2mzwAutFNnJm2ho9nls4q",
+//         sequenceNo: 26
+//       },
+//       hash: {{KGQhnyXb/BltXwCY9WPc0y1B8JLk/ok6w5YiaKweOvc=}},
+//       data: {
+//         accountId: "user1",
+//         balance: 0
+//       },
+//       metadata: {
+//         id: "59NbC9MoyMw4vsTsoNROxX",
+//         version: 0,
+//         txTime: 2023-09-23T07:45:10.121Z,
+//         txId: "GE2lVViZmSY6QHl0OmvsmN"
+//       }
+//     }
+//   }
+// }}
