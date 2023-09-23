@@ -227,7 +227,7 @@ export class QldbWalletStack extends Stack {
 
     // Single API with some resources(endpoints)
     // Ref: https://qiita.com/misaosyushi/items/104445be7d7d3ba304bc, https://maku.blog/p/k7eoer5/
-    // CAUTION: // Needs to be properly authorized in PRD
+    // TODO: Properly authorize in PRD: API key, Cofgnito, IAM, etc.
     const api = new apigw.RestApi(this, "wallet-api", {
       restApiName: "QLDB Wallet API",
       description: "Lambda functions for QLDB wallet",
@@ -240,7 +240,7 @@ export class QldbWalletStack extends Stack {
       },
       endpointTypes: [apigw.EndpointType.REGIONAL],
       defaultMethodOptions: {
-        authorizationType: apigw.AuthorizationType.NONE, // Needs to be properly authorized in PRD
+        authorizationType: apigw.AuthorizationType.NONE, // TODO: Change this
       },
     });
 
@@ -274,50 +274,6 @@ export class QldbWalletStack extends Stack {
       "GET",
       new apigw.LambdaIntegration(lambdaGetTransactions),
     );
-
-    // ORIGINAL: Separate API, using IAM authorization
-    // const lambdaRestApiProps: Omit<apigw.LambdaRestApiProps, "handler"> = {
-    //   endpointTypes: [apigw.EndpointType.REGIONAL],
-    //   defaultMethodOptions: {
-    //     authorizationType: apigw.AuthorizationType.IAM,
-    //   },
-    // };
-    // const getBalanceApi = new apigw.LambdaRestApi(this, "get-balance-api", {
-    //   handler: lambdaGetBalance,
-    //   ...lambdaRestApiProps,
-    // });
-
-    // const createAccountApi = new apigw.LambdaRestApi(
-    //   this,
-    //   "create-account-api",
-    //   {
-    //     handler: lambdaCreateAccount,
-    //     ...lambdaRestApiProps,
-    //   },
-    // );
-
-    // const withdrawFundsApi = new apigw.LambdaRestApi(
-    //   this,
-    //   "withdraw-funds-api",
-    //   {
-    //     handler: lambdaWithdrawFunds,
-    //     ...lambdaRestApiProps,
-    //   },
-    // );
-
-    // const addFundsApi = new apigw.LambdaRestApi(this, "add-funds-api", {
-    //   handler: lambdaAddFunds,
-    //   ...lambdaRestApiProps,
-    // });
-
-    // const getTransactionsApi = new apigw.LambdaRestApi(
-    //   this,
-    //   "get-transactions-api",
-    //   {
-    //     handler: lambdaGetTransactions,
-    //     ...lambdaRestApiProps,
-    //   },
-    // );
 
     const output1 = `Execute the following queries in QLDB query editor for ledger ${LEDGER_NAME} before using:`;
     const output2 = `CREATE TABLE "${QLDB_TABLE_NAME}"`;
