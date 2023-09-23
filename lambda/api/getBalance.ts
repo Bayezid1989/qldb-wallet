@@ -22,7 +22,7 @@ const queryBalance = async (
 
   if (firstDoc) {
     returnMessage.accountId = accountId;
-    returnMessage.balance = firstDoc.get("balance")?.stringValue();
+    returnMessage.balance = firstDoc.get("balance")?.numberValue();
   } else {
     return returnError(`Account ${accountId} not found`, 400);
   }
