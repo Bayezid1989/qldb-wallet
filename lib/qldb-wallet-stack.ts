@@ -31,7 +31,7 @@ export class QldbWalletStack extends Stack {
 
     // Create QLDB Ledger and IAM Roles
     new qldb.CfnLedger(this, "wallet-ledger", {
-      permissionsMode: "ALLOW_ALL",
+      permissionsMode: "ALLOW_ALL", // Not recommended
       name: LEDGER_NAME,
     });
 

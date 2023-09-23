@@ -21,11 +21,11 @@ Please see the following [architecture diagram](readme-architecture.png)
 Get APIs require GET method with pathParameters, while others require POST method with body.
 The **body** of the request must be a JSON object with the following attributes:
 
-getBalance: `/accountId`
-getTransactions: `/accountId`
-createAccount: `{ "accountId": "<accountId>" }`
-withdrawFunds: `{ "accountId": "<accountId>", "amount": <number> }`
-addFunds: `{ "accountId": "<accountId>", "amount": <number> }`
+- getBalance: `/accountId`
+- getTransactions: `/accountId`
+- createAccount: `{ "accountId": "<accountId>" }`
+- withdrawFunds: `{ "accountId": "<accountId>", "amount": <number> }`
+- addFunds: `{ "accountId": "<accountId>", "amount": <number> }`
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
