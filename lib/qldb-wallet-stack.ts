@@ -203,6 +203,7 @@ export class QldbWalletStack extends Stack {
 
     // Single API with some resources(endpoints)
     // Ref: https://qiita.com/misaosyushi/items/104445be7d7d3ba304bc, https://maku.blog/p/k7eoer5/
+    // CAUTION: // Needs to be properly authorized in PRD
     const api = new apigw.RestApi(this, "wallet-api", {
       restApiName: "QLDB Wallet API",
       description: "Lambda functions for QLDB wallet",
@@ -218,7 +219,6 @@ export class QldbWalletStack extends Stack {
         authorizationType: apigw.AuthorizationType.NONE, // Needs to be properly authorized in PRD
       },
     });
-    const apiKey = api.addApiKey("api-key", { apiKeyName: "wallet-api-key" });
 
     const getBalanceRsc = api.root
       .addResource("getBalance")
@@ -226,27 +226,22 @@ export class QldbWalletStack extends Stack {
     getBalanceRsc.addMethod(
       "GET",
       new apigw.LambdaIntegration(lambdaGetBalance),
-      { apiKeyRequired: true },
     );
 
     const createAccountRsc = api.root.addResource("createAccount");
     createAccountRsc.addMethod(
       "POST",
       new apigw.LambdaIntegration(lambdaCreateAccount),
-      { apiKeyRequired: true },
     );
 
     const withdrawFundsRsc = api.root.addResource("withdrawFunds");
     withdrawFundsRsc.addMethod(
       "POST",
       new apigw.LambdaIntegration(lambdaWithdrawFunds),
-      { apiKeyRequired: true },
     );
 
     const addFundsRsc = api.root.addResource("addFunds");
-    addFundsRsc.addMethod("POST", new apigw.LambdaIntegration(lambdaAddFunds), {
-      apiKeyRequired: true,
-    });
+    addFundsRsc.addMethod("POST", new apigw.LambdaIntegration(lambdaAddFunds));
 
     const getTransactionsRsc = api.root
       .addResource("getTransactions")
@@ -254,7 +249,6 @@ export class QldbWalletStack extends Stack {
     getTransactionsRsc.addMethod(
       "GET",
       new apigw.LambdaIntegration(lambdaGetTransactions),
-      { apiKeyRequired: true },
     );
 
     // ORIGINAL: Separate API, using IAM authorization
@@ -304,11 +298,9 @@ export class QldbWalletStack extends Stack {
     const output1 = `Execute the following queries in QLDB query editor for ledger ${LEDGER_NAME} before using:`;
     const output2 = `CREATE TABLE "${QLDB_TABLE_NAME}"`;
     const output3 = `CREATE INDEX ON "${QLDB_TABLE_NAME}" (accountId)`;
-    const output4 = `API Key ID: ${apiKey.keyId}, ARN: ${apiKey.keyArn}`;
 
     new CfnOutput(this, "stack-output1", { value: output1 });
     new CfnOutput(this, "stack-output2", { value: output2 });
     new CfnOutput(this, "stack-output3", { value: output3 });
-    new CfnOutput(this, "stack-output4", { value: output4 });
   }
 }
