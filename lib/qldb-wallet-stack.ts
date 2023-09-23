@@ -5,16 +5,13 @@ import {
   CfnOutput,
   aws_qldb as qldb,
   aws_lambda as lambda,
+  aws_lambda_nodejs as lambdaNodeJs,
   aws_lambda_event_sources as lambdaEventSources,
   aws_iam as iam,
   aws_dynamodb as dynamodb,
   aws_kinesis as kinesis,
   aws_apigateway as apigw,
 } from "aws-cdk-lib";
-import {
-  NodejsFunction,
-  NodejsFunctionProps,
-} from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
 import { config } from "../config";
 
@@ -121,7 +118,7 @@ export class QldbWalletStack extends Stack {
 
     // Create Lambda functions
     // Ref: https://github.com/aws-samples/aws-cdk-examples/blob/master/typescript/api-cors-lambda-crud-dynamodb/index.ts
-    const nodeJsFunctionProps: NodejsFunctionProps = {
+    const nodeJsFunctionProps: lambdaNodeJs.NodejsFunctionProps = {
       runtime: lambda.Runtime.NODEJS_18_X,
       role: lambdaQldbRole,
       logRetention: LOG_RETENTION,
@@ -129,35 +126,43 @@ export class QldbWalletStack extends Stack {
       tracing: lambda.Tracing.ACTIVE,
     };
 
-    const lambdaGetBalance = new NodejsFunction(this, "get-balance-lambda", {
-      entry: "lambda/api/getBalance.ts",
-      ...nodeJsFunctionProps,
-    });
+    const lambdaGetBalance = new lambdaNodeJs.NodejsFunction(
+      this,
+      "get-balance-lambda",
+      {
+        entry: "lambda/api/getBalance.ts",
+        ...nodeJsFunctionProps,
+      },
+    );
 
-    const lambdaWithdrawFunds = new NodejsFunction(
+    const lambdaWithdrawFunds = new lambdaNodeJs.NodejsFunction(
       this,
       "withdraw-funds-lambda",
       { entry: "lambda/api/withdrawFunds.ts", ...nodeJsFunctionProps },
     );
 
-    const lambdaAddFunds = new NodejsFunction(this, "add-funds-lambda", {
-      entry: "lambda/api/addFunds.ts",
-      ...nodeJsFunctionProps,
-    });
+    const lambdaAddFunds = new lambdaNodeJs.NodejsFunction(
+      this,
+      "add-funds-lambda",
+      {
+        entry: "lambda/api/addFunds.ts",
+        ...nodeJsFunctionProps,
+      },
+    );
 
-    const lambdaCreateAccount = new NodejsFunction(
+    const lambdaCreateAccount = new lambdaNodeJs.NodejsFunction(
       this,
       "create-account-lambda",
       { entry: "lambda/api/createAccount.ts", ...nodeJsFunctionProps },
     );
 
-    const lambdaGetTransactions = new NodejsFunction(
+    const lambdaGetTransactions = new lambdaNodeJs.NodejsFunction(
       this,
       "get-transactions-lambda",
       { entry: "lambda/api/getTransactions.ts", ...nodeJsFunctionProps },
     );
 
-    const lambdaStreamTransactions = new NodejsFunction(
+    const lambdaStreamTransactions = new lambdaNodeJs.NodejsFunction(
       this,
       "stream-transactions-lambda",
       { entry: "lambda/streamTransactions.ts", ...nodeJsFunctionProps },
