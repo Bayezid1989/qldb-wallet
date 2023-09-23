@@ -47,7 +47,7 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 - `cdk diff` compare deployed stack with current state
 - `cdk synth` emits the synthesized CloudFormation template
 
-## Process to deploy CDK (Yoshi's Macbook Pro Apple Silicon)
+## Process log to deploy CDK (with Macbook Pro Apple Silicon)
 
 1. Follow [instruction to set up CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html)
 
