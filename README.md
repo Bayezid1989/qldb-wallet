@@ -1,6 +1,6 @@
 # QLDB DynamoDB Serverless Wallet
 
-This is NodeJs(Typescript) repo based on [AWS Sample serverless-wallet (Python)](https://github.com/aws-samples/serverless-wallet)
+This is NodeJs(Typescript) Digital Wallet Project based on [AWS serverless-wallet blog](https://aws.amazon.com/blogs/architecture/building-a-serverless-wallet-service-for-in-game-currency/)
 
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 SPDX-License-Identifier: MIT-0
@@ -58,8 +58,6 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 2. Folow [instruction to deploy CDK](https://docs.aws.amazon.com/cdk/v2/guide/hello_world.html)
 
-   - `cdk init app --language typescript`
-   - `npm run build`
-   - `cdk ls`
-   - `cdk synth`
+   - Test deploy: `cdk init app --language typescript`, `npm run build`, `cdk ls`, `cdk synth`, `cdk deploy`
+   - Add actual code based on [AWS Sample serverless-wallet (Python)](https://github.com/aws-samples/serverless-wallet)
    - `cdk deploy` --> Error: "Ledger is not yet active" --> Deploy only creating QLDB and DynamoDB portions first, then after confirming Ledger is active, deploy all.
