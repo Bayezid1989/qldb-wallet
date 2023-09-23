@@ -129,10 +129,7 @@ export class QldbWalletStack extends Stack {
     const lambdaGetBalance = new lambdaNodeJs.NodejsFunction(
       this,
       "get-balance-lambda",
-      {
-        entry: "lambda/api/getBalance.ts",
-        ...nodeJsFunctionProps,
-      },
+      { entry: "lambda/api/getBalance.ts", ...nodeJsFunctionProps },
     );
 
     const lambdaWithdrawFunds = new lambdaNodeJs.NodejsFunction(
@@ -144,10 +141,7 @@ export class QldbWalletStack extends Stack {
     const lambdaAddFunds = new lambdaNodeJs.NodejsFunction(
       this,
       "add-funds-lambda",
-      {
-        entry: "lambda/api/addFunds.ts",
-        ...nodeJsFunctionProps,
-      },
+      { entry: "lambda/api/addFunds.ts", ...nodeJsFunctionProps },
     );
 
     const lambdaCreateAccount = new lambdaNodeJs.NodejsFunction(
@@ -232,9 +226,7 @@ export class QldbWalletStack extends Stack {
     getBalanceRsc.addMethod(
       "GET",
       new apigw.LambdaIntegration(lambdaGetBalance),
-      {
-        apiKeyRequired: true,
-      },
+      { apiKeyRequired: true },
     );
 
     const createAccountRsc = api.root.addResource("createAccount");
