@@ -1,7 +1,7 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import type { dom } from "ion-js";
-import { initQldbDriver, returnError } from "../utils";
+import { initQldbDriver, returnError, returnResponse } from "../utils";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -12,8 +12,6 @@ const createAccount = async (
   accountId: string,
   executor: TransactionExecutor,
 ) => {
-  const returnMessage: any = {};
-
   console.info(`Verifying account with id ${accountId} does not exist`);
   let res = await executor.execute(
     `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId = ? `,
@@ -32,12 +30,7 @@ const createAccount = async (
     await executor.execute(`INSERT INTO "${QLDB_TABLE_NAME}" ?`, doc);
   }
 
-  returnMessage.accountId = accountId;
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ ...returnMessage, status: "Ok" }),
-    isBase64Encoded: false,
-  };
+  return returnResponse({ accountId });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -52,11 +45,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (body.accountId) {
     try {
-      const obj = await qldbDriver.executeLambda(
-        (executor: TransactionExecutor) =>
-          createAccount(body.accountId, executor),
+      const res = await qldbDriver.executeLambda((executor) =>
+        createAccount(body.accountId, executor),
       );
-      return obj;
+      return res;
     } catch (error: any) {
       return returnError(error.message, 500);
     }

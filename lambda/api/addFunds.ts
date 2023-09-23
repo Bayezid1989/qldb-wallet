@@ -1,6 +1,11 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { getQldbAccountBalance, initQldbDriver, returnError } from "../utils";
+import {
+  getQldbAccountBalance,
+  initQldbDriver,
+  returnError,
+  returnResponse,
+} from "../utils";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -13,26 +18,22 @@ const addFunds = async (
   amount: number,
   executor: TransactionExecutor,
 ) => {
-  const returnMessage: any = {};
+  const returnBody: Record<string, any> = {};
 
   const balance = await getQldbAccountBalance(accountId, executor);
   if (typeof balance !== "number") return balance;
 
   console.info(`Updating balance with ${amount} for ${accountId}`);
-  returnMessage.accountId = accountId;
-  returnMessage.oldBalance = balance;
-  returnMessage.newBalance = balance + amount;
+  returnBody.accountId = accountId;
+  returnBody.oldBalance = balance;
+  returnBody.newBalance = balance + amount;
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}" SET balance = ? WHERE accountId = ?`,
-    returnMessage.newBalance,
+    returnBody.newBalance,
     accountId,
   );
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ ...returnMessage, status: "Ok" }),
-    isBase64Encoded: false,
-  };
+  return returnResponse(returnBody);
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -47,11 +48,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (body.accountId && body.amount && body.amount > 0) {
     try {
-      const obj = await qldbDriver.executeLambda(
-        (executor: TransactionExecutor) =>
-          addFunds(body.accountId, body.amount, executor),
+      const res = await qldbDriver.executeLambda((executor) =>
+        addFunds(body.accountId, body.amount, executor),
       );
-      return obj;
+      return res;
     } catch (error: any) {
       return returnError(error.message, 500);
     }

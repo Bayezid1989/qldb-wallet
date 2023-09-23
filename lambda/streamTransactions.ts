@@ -35,36 +35,6 @@ const promiseDeaggregate = (
     });
   });
 
-// // Ref: ion-js DOM API struct example: https://github.com/amazon-ion/ion-js/blob/master/src/dom/README.md#struct-example-1
-// const getTableInfoFromRevisionRecord = (revisionRecord: dom.Value) => {
-//   //  Retrieves the table information block from revision Revision Record
-//   //  Table information contains the table name and table id
-//   //  Parameters:
-//   //    revision_record (string): The ion representation of Revision record from QLDB Streams
-//   const tableInfo = revisionRecord.get("payload", "tableInfo");
-//   if (tableInfo) {
-//     return tableInfo;
-//   }
-//   return null;
-// };
-
-// const getDataMetadataFromRevisionRecord = (revisionRecord: dom.Value) => {
-//   let revisionData: dom.Value | null = null;
-//   let revisionMetadata: dom.Value | null = null;
-
-//   const revision = revisionRecord.get("payload", "revision");
-//   if (revision) {
-//     if (revision.get("data")) {
-//       revisionData = revision.get("data");
-//     }
-//     if (revision.get("metadata")) {
-//       revisionMetadata = revision.get("metadata");
-//     }
-//   }
-
-//   return [revisionData, revisionMetadata];
-// };
-
 const filterIonPayload = (
   kinesisDeaggregateRecords: UserRecord[],
   tableNames?: string[],
@@ -82,18 +52,12 @@ const filterIonPayload = (
         REVISION_DETAILS_RECORD_TYPE
     ) {
       const payload = parseIonRecord(ionRecord);
-      console.log("revisionDetails", JSON.stringify(payload));
-      // const tableInfo = getTableInfoFromRevisionRecord(ionRecord);
-      // const tableName = tableInfo?.get("tableName")?.stringValue();
       const tableInfo = payload?.tableInfo;
 
       if (
         !tableNames ||
         (tableInfo?.tableName && tableNames.includes(tableInfo.tableName))
       ) {
-        // const [revisionData, revisionMetadata] =
-        //   getDataMetadataFromRevisionRecord(ionRecord);
-
         acc.push(payload);
       }
     }
@@ -116,20 +80,17 @@ export const handler: Handler = async (event) => {
 
   // Iterate through deaggregated records
   for (const payload of filterIonPayload(userRecords, [QLDB_TABLE_NAME])) {
-    // const tableName = record.tableInfo?.get("tableName")?.stringValue();
-    // const revisionData = record.revisionData;
-    // const revisionMetadata = record.revisionMetadata;
-
     if (payload?.revision && payload?.tableInfo) {
       const { data, metadata } = payload.revision;
       console.log("record.tableInfo", payload.tableInfo);
       if (data && metadata && payload.tableInfo.tableName === QLDB_TABLE_NAME) {
         const txDate = metadata.txTime?.getDate();
+
         const ddbItem: typeof data & {
           txId: string | undefined | null;
-          txTime: string | undefined | null; // Must be ISO 8601
-          timestamp: number | undefined; // UNIX timestamp
-          expire_timestamp?: number; // UNIX timestamp
+          txTime: string | undefined | null;
+          timestamp: number | undefined;
+          expire_timestamp?: number;
         } = {
           ...data,
           txId: metadata.txId,
@@ -137,21 +98,6 @@ export const handler: Handler = async (event) => {
           timestamp: txDate?.getTime(),
         };
 
-        // Ref: dumpText: https://github.com/amazon-ion/ion-js/blob/master/src/dom/README.md#iondumpbinary-iondumptext-and-iondumpprettytext
-        // Or Down-converting to JSON? https://amazon-ion.github.io/ion-docs/guides/cookbook.html
-        // const ddbItem = JSON.parse(dumpText(revisionData), (key, value) =>
-        //   typeof value === "string" && /^[\d-]+T[\d:.]+Z$/.test(value)
-        //     ? new Date(value)
-        //     : value,
-        // );
-        // const stringDatetime = dumpText(revisionMetadata?.get("txTime"))?.split(
-        //   " ",
-        // )?.[1];
-        // const parsedDatetime = new Date(stringDatetime);
-        // const unixTime = Math.floor(parsedDatetime.getTime() / 1000);
-        // ddbItem.txTime = stringDatetime;
-        // ddbItem.txId = revisionMetadata?.get("txId");
-        // ddbItem.timestamp = unixTime;
         if (EXPIRE_AFTER_DAYS && ddbItem.timestamp) {
           ddbItem.expire_timestamp =
             ddbItem.timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));

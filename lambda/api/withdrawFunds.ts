@@ -1,6 +1,11 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { getQldbAccountBalance, initQldbDriver, returnError } from "../utils";
+import {
+  getQldbAccountBalance,
+  initQldbDriver,
+  returnError,
+  returnResponse,
+} from "../utils";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -12,12 +17,10 @@ const withdrawFunds = async (
   amount: number,
   executor: TransactionExecutor,
 ) => {
-  const returnMessage: any = {};
+  const returnBody: Record<string, any> = {};
 
   const balance = await getQldbAccountBalance(accountId, executor);
   if (typeof balance !== "number") return balance;
-
-  console.info(`Updating balance with ${amount} for ${accountId}`);
   if (balance - amount < 0) {
     return returnError(
       `Funds too low. Cannot deduct ${amount} from account ${accountId}`,
@@ -25,20 +28,17 @@ const withdrawFunds = async (
     );
   }
 
-  returnMessage.accountId = accountId;
-  returnMessage.oldBalance = balance;
-  returnMessage.newBalance = balance - amount;
+  console.info(`Updating balance with ${amount} for ${accountId}`);
+  returnBody.accountId = accountId;
+  returnBody.oldBalance = balance;
+  returnBody.newBalance = balance - amount;
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}" SET balance = ? WHERE accountId = ?`,
-    returnMessage.newBalance,
+    returnBody.newBalance,
     accountId,
   );
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ ...returnMessage, status: "Ok" }),
-    isBase64Encoded: false,
-  };
+  return returnResponse(returnBody);
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {

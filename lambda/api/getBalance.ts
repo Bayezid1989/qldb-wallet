@@ -1,6 +1,6 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { initQldbDriver, returnError } from "../utils";
+import { initQldbDriver, returnError, returnResponse } from "../utils";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -11,7 +11,7 @@ const queryBalance = async (
   accountId: string,
   executor: TransactionExecutor,
 ) => {
-  const returnMessage: any = {};
+  const returnBody: Record<string, any> = {};
 
   console.info(`Looking up balance for account with id ${accountId}`);
   const res = await executor.execute(
@@ -21,17 +21,13 @@ const queryBalance = async (
   const firstDoc = res.getResultList()[0];
 
   if (firstDoc) {
-    returnMessage.accountId = accountId;
-    returnMessage.balance = firstDoc.get("balance")?.numberValue();
+    returnBody.accountId = accountId;
+    returnBody.balance = firstDoc.get("balance")?.numberValue();
   } else {
     return returnError(`Account ${accountId} not found`, 400);
   }
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ ...returnMessage, status: "Ok" }),
-    isBase64Encoded: false,
-  };
+  return returnResponse(returnBody);
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -40,10 +36,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (accountId) {
     try {
-      const obj = await qldbDriver.executeLambda(
-        (executor: TransactionExecutor) => queryBalance(accountId, executor),
+      const res = await qldbDriver.executeLambda((executor) =>
+        queryBalance(accountId, executor),
       );
-      return obj;
+      return res;
     } catch (error: any) {
       return returnError(error.message, 500);
     }

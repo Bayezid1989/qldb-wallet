@@ -14,7 +14,7 @@ export const returnError = (
   message: string,
   httpStatusCode: number = 500,
 ): APIGatewayProxyResult => {
-  const returnMessage = { status: "error", message };
+  const returnMessage = { status: "Error", message };
   const returnObject = {
     statusCode: httpStatusCode,
     body: JSON.stringify(returnMessage),
@@ -23,6 +23,12 @@ export const returnError = (
   console.error(returnMessage);
   return returnObject;
 };
+
+export const returnResponse = (body: Record<string, any>) => ({
+  statusCode: 200,
+  body: JSON.stringify({ ...body, status: "OK" }),
+  isBase64Encoded: false,
+});
 
 export const initQldbDriver = () => {
   const LEDGER_NAME = config.ledgerName;
