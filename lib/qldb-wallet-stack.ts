@@ -124,6 +124,7 @@ export class QldbWalletStack extends Stack {
       logRetention: LOG_RETENTION,
       memorySize: 512,
       tracing: lambda.Tracing.ACTIVE,
+      handler: "handler",
     };
 
     const lambdaGetBalance = new lambdaNodeJs.NodejsFunction(
@@ -214,7 +215,7 @@ export class QldbWalletStack extends Stack {
         allowHeaders: apigw.Cors.DEFAULT_HEADERS,
         statusCode: 200,
       },
-      endpointTypes: [apigw.EndpointType.EDGE],
+      endpointTypes: [apigw.EndpointType.REGIONAL],
       defaultMethodOptions: {
         authorizationType: apigw.AuthorizationType.NONE, // Needs to be properly authorized in PRD
       },

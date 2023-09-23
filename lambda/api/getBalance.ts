@@ -34,9 +34,9 @@ const queryBalance = async (
   };
 };
 
-export const lambdaHandler: APIGatewayProxyHandler = async (event) => {
+export const handler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
-  const accountId = event.pathParameters?.["id"];
+  const accountId = event.pathParameters?.["accountId"];
 
   if (accountId) {
     try {

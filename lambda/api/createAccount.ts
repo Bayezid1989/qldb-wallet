@@ -40,7 +40,7 @@ const createAccount = async (
   };
 };
 
-export const lambdaHandler: APIGatewayProxyHandler = async (event) => {
+export const handler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
   let body: any = {};
 
