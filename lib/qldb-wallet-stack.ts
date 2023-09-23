@@ -129,32 +129,32 @@ export class QldbWalletStack extends Stack {
       tracing: lambda.Tracing.ACTIVE,
     };
 
-    const lambdaGetFunds = new NodejsFunction(this, "get-funds-lambda", {
-      entry: "lambda/getFunds.ts",
+    const lambdaGetBalance = new NodejsFunction(this, "get-balance-lambda", {
+      entry: "lambda/api/getBalance.ts",
       ...nodeJsFunctionProps,
     });
 
     const lambdaWithdrawFunds = new NodejsFunction(
       this,
       "withdraw-funds-lambda",
-      { entry: "lambda/withdrawFunds.ts", ...nodeJsFunctionProps },
+      { entry: "lambda/api/withdrawFunds.ts", ...nodeJsFunctionProps },
     );
 
     const lambdaAddFunds = new NodejsFunction(this, "add-funds-lambda", {
-      entry: "lambda/addFunds.ts",
+      entry: "lambda/api/addFunds.ts",
       ...nodeJsFunctionProps,
     });
 
     const lambdaCreateAccount = new NodejsFunction(
       this,
       "create-account-lambda",
-      { entry: "lambda/createAccount.ts", ...nodeJsFunctionProps },
+      { entry: "lambda/api/createAccount.ts", ...nodeJsFunctionProps },
     );
 
     const lambdaGetTransactions = new NodejsFunction(
       this,
       "get-transactions-lambda",
-      { entry: "lambda/getTransactions.ts", ...nodeJsFunctionProps },
+      { entry: "lambda/api/getTransactions.ts", ...nodeJsFunctionProps },
     );
 
     const lambdaStreamTransactions = new NodejsFunction(
@@ -176,10 +176,11 @@ export class QldbWalletStack extends Stack {
     // Add environment variables to Lambda functions
     const lambdas = [
       lambdaCreateAccount,
-      lambdaGetFunds,
+      lambdaGetBalance,
       lambdaWithdrawFunds,
       lambdaAddFunds,
       lambdaGetTransactions,
+      lambdaStreamTransactions,
     ];
     for (const lmbd of lambdas) {
       lmbd.addEnvironment("LEDGER_NAME", LEDGER_NAME);
@@ -187,16 +188,9 @@ export class QldbWalletStack extends Stack {
       lmbd.addEnvironment("LOG_LEVEL", LOG_LEVEL);
     }
 
-    lambdaGetTransactions.addEnvironment(
-      "DDB_TABLE_NAME",
-      `wallet-transactions-${LEDGER_NAME}`,
-    );
-    lambdaStreamTransactions.addEnvironment(
-      "DDB_TABLE_NAME",
-      `wallet-transactions-${LEDGER_NAME}`,
-    );
-    lambdaStreamTransactions.addEnvironment("QLDB_TABLE_NAME", QLDB_TABLE_NAME);
-    lambdaStreamTransactions.addEnvironment("LOG_LEVEL", LOG_LEVEL);
+    const ddbTableName = `wallet-transactions-${LEDGER_NAME}`;
+    lambdaGetTransactions.addEnvironment("DDB_TABLE_NAME", ddbTableName);
+    lambdaStreamTransactions.addEnvironment("DDB_TABLE_NAME", ddbTableName);
 
     if (TTL_ATTRIBUTE && EXPIRE_AFTER_DAYS) {
       lambdaStreamTransactions.addEnvironment("TTL_ATTRIBUTE", TTL_ATTRIBUTE);
@@ -207,55 +201,117 @@ export class QldbWalletStack extends Stack {
     }
 
     // Create APIs in API Gateway
-    const lambdaRestApiProps: Omit<apigw.LambdaRestApiProps, "handler"> = {
-      endpointTypes: [apigw.EndpointType.REGIONAL],
+
+    // Single API with some resources(endpoints)
+    // Ref: https://qiita.com/misaosyushi/items/104445be7d7d3ba304bc
+    const api = new apigw.RestApi(this, "wallet-api", {
+      restApiName: "QLDB Wallet API",
+      description: "Lambda functions for QLDB wallet",
+      apiKeySourceType: apigw.ApiKeySourceType.HEADER,
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigw.Cors.ALL_ORIGINS,
+        allowMethods: apigw.Cors.ALL_METHODS,
+        allowHeaders: apigw.Cors.DEFAULT_HEADERS,
+        statusCode: 200,
+      },
+      endpointTypes: [apigw.EndpointType.EDGE],
       defaultMethodOptions: {
-        authorizationType: apigw.AuthorizationType.IAM,
+        authorizationType: apigw.AuthorizationType.NONE, // Needs to be properly authorized in PRD
       },
-    };
-    const getFundsApi = new apigw.LambdaRestApi(this, "get-funds-api", {
-      handler: lambdaGetFunds,
-      ...lambdaRestApiProps,
+    });
+    const apiKey = api.addApiKey("api-key", { apiKeyName: "wallet-api-key" });
+
+    const getBalanceRsc = api.root
+      .addResource("getBalance")
+      .addResource("{accountId}");
+    getBalanceRsc.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(lambdaGetBalance),
+      {
+        apiKeyRequired: true,
+      },
+    );
+
+    const createAccountRsc = api.root.addResource("createAccount");
+    createAccountRsc.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(lambdaCreateAccount),
+      { apiKeyRequired: true },
+    );
+
+    const withdrawFundsRsc = api.root.addResource("withdrawFunds");
+    withdrawFundsRsc.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(lambdaWithdrawFunds),
+      { apiKeyRequired: true },
+    );
+
+    const addFundsRsc = api.root.addResource("addFunds");
+    addFundsRsc.addMethod("POST", new apigw.LambdaIntegration(lambdaAddFunds), {
+      apiKeyRequired: true,
     });
 
-    const createAccountApi = new apigw.LambdaRestApi(
-      this,
-      "create-account-api",
-      {
-        handler: lambdaCreateAccount,
-        ...lambdaRestApiProps,
-      },
+    const getTransactionsRsc = api.root
+      .addResource("getTransactions")
+      .addResource("{accountId}");
+    getTransactionsRsc.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(lambdaGetTransactions),
+      { apiKeyRequired: true },
     );
 
-    const withdrawFundsApi = new apigw.LambdaRestApi(
-      this,
-      "withdraw-funds-api",
-      {
-        handler: lambdaWithdrawFunds,
-        ...lambdaRestApiProps,
-      },
-    );
+    // ORIGINAL: Separate API, using IAM authorization
+    // const lambdaRestApiProps: Omit<apigw.LambdaRestApiProps, "handler"> = {
+    //   endpointTypes: [apigw.EndpointType.REGIONAL],
+    //   defaultMethodOptions: {
+    //     authorizationType: apigw.AuthorizationType.IAM,
+    //   },
+    // };
+    // const getBalanceApi = new apigw.LambdaRestApi(this, "get-balance-api", {
+    //   handler: lambdaGetBalance,
+    //   ...lambdaRestApiProps,
+    // });
 
-    const addFundsApi = new apigw.LambdaRestApi(this, "add-funds-api", {
-      handler: lambdaAddFunds,
-      ...lambdaRestApiProps,
-    });
+    // const createAccountApi = new apigw.LambdaRestApi(
+    //   this,
+    //   "create-account-api",
+    //   {
+    //     handler: lambdaCreateAccount,
+    //     ...lambdaRestApiProps,
+    //   },
+    // );
 
-    const getTransactionsApi = new apigw.LambdaRestApi(
-      this,
-      "get-transactions-api",
-      {
-        handler: lambdaGetTransactions,
-        ...lambdaRestApiProps,
-      },
-    );
+    // const withdrawFundsApi = new apigw.LambdaRestApi(
+    //   this,
+    //   "withdraw-funds-api",
+    //   {
+    //     handler: lambdaWithdrawFunds,
+    //     ...lambdaRestApiProps,
+    //   },
+    // );
+
+    // const addFundsApi = new apigw.LambdaRestApi(this, "add-funds-api", {
+    //   handler: lambdaAddFunds,
+    //   ...lambdaRestApiProps,
+    // });
+
+    // const getTransactionsApi = new apigw.LambdaRestApi(
+    //   this,
+    //   "get-transactions-api",
+    //   {
+    //     handler: lambdaGetTransactions,
+    //     ...lambdaRestApiProps,
+    //   },
+    // );
 
     const output1 = `Execute the following queries in QLDB query editor for ledger ${LEDGER_NAME} before using:`;
     const output2 = `CREATE TABLE "${QLDB_TABLE_NAME}"`;
     const output3 = `CREATE INDEX ON "${QLDB_TABLE_NAME}" (accountId)`;
+    const output4 = `API Key ID: ${apiKey.keyId}, ARN: ${apiKey.keyArn}`;
 
     new CfnOutput(this, "stack-output1", { value: output1 });
     new CfnOutput(this, "stack-output2", { value: output2 });
     new CfnOutput(this, "stack-output3", { value: output3 });
+    new CfnOutput(this, "stack-output4", { value: output4 });
   }
 }

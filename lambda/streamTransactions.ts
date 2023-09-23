@@ -1,7 +1,11 @@
 import { UserRecord, deaggregateSync } from "aws-kinesis-agg";
 import { load, dumpText, dumpPrettyText, dom } from "ion-js";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
-import { KinesisStreamRecord, KinesisStreamRecordPayload } from "aws-lambda";
+import {
+  Handler,
+  KinesisStreamRecord,
+  KinesisStreamRecordPayload,
+} from "aws-lambda";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 const client = new DynamoDBClient();
@@ -100,7 +104,7 @@ const filteredRecordsGenerator = (
 
 const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
 
-export async function lambdaHandler(event: any, context: any): Promise<any> {
+export const lambdaHandler: Handler = async (event) => {
   const rawKinesisRecords: KinesisStreamRecord[] = event.Records;
 
   // Deaggregate all records in one call
@@ -159,4 +163,4 @@ export async function lambdaHandler(event: any, context: any): Promise<any> {
   return {
     statusCode: 200,
   };
-}
+};

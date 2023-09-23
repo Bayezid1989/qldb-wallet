@@ -1,28 +1,14 @@
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
-import type { Handler } from "aws-lambda";
+import type { APIGatewayProxyEvent } from "aws-lambda";
+import type { ReturnObj } from "../util/types";
+import { returnError } from "../util";
 
 const client = new DynamoDBClient();
 const TABLE_NAME = process.env.DDB_TABLE_NAME || "";
 
-let returnObject: {
-  statusCode?: number;
-  body?: string;
-  isBase64Encoded?: boolean;
-} = {};
-
-const setError = (message: string, httpStatusCode: number = 500): void => {
-  const returnMessage = { status: "error", message };
-  returnObject = {
-    statusCode: httpStatusCode,
-    body: JSON.stringify(returnMessage),
-    isBase64Encoded: false,
-  };
-  console.error(returnMessage);
-};
-
 // Ref: DynamoDB Query: https://docs.aws.amazon.com/ja_jp/amazondynamodb/latest/developerguide/GettingStarted.Query.html
-const queryTransactions = async (accountId: string): Promise<void> => {
+const queryTransactions = async (accountId: string): Promise<ReturnObj> => {
   console.info(`Querying DynamoDB for account with id ${accountId}`);
   const command = new QueryCommand({
     TableName: TABLE_NAME,
@@ -35,32 +21,31 @@ const queryTransactions = async (accountId: string): Promise<void> => {
     Transactions: response.Items,
   };
 
-  returnObject = {
+  return {
     statusCode: 200,
     body: JSON.stringify({ ...returnMessage, status: "Ok" }),
     isBase64Encoded: false,
   };
 };
 
-export const lambdaHandler: Handler = async (event, context) => {
+export const lambdaHandler = async (event: APIGatewayProxyEvent) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
   let body: any = {};
 
   try {
     body = JSON.parse(event.body || "{}");
   } catch (error: any) {
-    setError(error.message, 400);
+    return returnError(error.message, 400);
   }
 
   if (body.accountId) {
     try {
-      await queryTransactions(body.accountId);
+      const obj = await queryTransactions(body.accountId);
+      return obj;
     } catch (error: any) {
-      setError(error.message, 500);
+      return returnError(error.message, 500);
     }
   } else {
-    setError("accountId not specified", 400);
+    return returnError("accountId not specified", 400);
   }
-
-  return returnObject;
 };
