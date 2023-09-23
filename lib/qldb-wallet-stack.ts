@@ -120,7 +120,6 @@ export class QldbWalletStack extends Stack {
     // Ref: https://github.com/aws-samples/aws-cdk-examples/blob/master/typescript/api-cors-lambda-crud-dynamodb/index.ts
     const nodeJsFunctionProps: lambdaNodeJs.NodejsFunctionProps = {
       runtime: lambda.Runtime.NODEJS_18_X,
-      role: lambdaQldbRole,
       logRetention: LOG_RETENTION,
       memorySize: 512,
       tracing: lambda.Tracing.ACTIVE,
@@ -130,37 +129,61 @@ export class QldbWalletStack extends Stack {
     const lambdaGetBalance = new lambdaNodeJs.NodejsFunction(
       this,
       "get-balance-lambda",
-      { entry: "lambda/api/getBalance.ts", ...nodeJsFunctionProps },
+      {
+        entry: "lambda/api/getBalance.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
     );
 
     const lambdaWithdrawFunds = new lambdaNodeJs.NodejsFunction(
       this,
       "withdraw-funds-lambda",
-      { entry: "lambda/api/withdrawFunds.ts", ...nodeJsFunctionProps },
+      {
+        entry: "lambda/api/withdrawFunds.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
     );
 
     const lambdaAddFunds = new lambdaNodeJs.NodejsFunction(
       this,
       "add-funds-lambda",
-      { entry: "lambda/api/addFunds.ts", ...nodeJsFunctionProps },
+      {
+        entry: "lambda/api/addFunds.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
     );
 
     const lambdaCreateAccount = new lambdaNodeJs.NodejsFunction(
       this,
       "create-account-lambda",
-      { entry: "lambda/api/createAccount.ts", ...nodeJsFunctionProps },
+      {
+        entry: "lambda/api/createAccount.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
     );
 
     const lambdaGetTransactions = new lambdaNodeJs.NodejsFunction(
       this,
       "get-transactions-lambda",
-      { entry: "lambda/api/getTransactions.ts", ...nodeJsFunctionProps },
+      {
+        entry: "lambda/api/getTransactions.ts",
+        role: lambdaDdbRole,
+        ...nodeJsFunctionProps,
+      },
     );
 
     const lambdaStreamTransactions = new lambdaNodeJs.NodejsFunction(
       this,
       "stream-transactions-lambda",
-      { entry: "lambda/streamTransactions.ts", ...nodeJsFunctionProps },
+      {
+        entry: "lambda/streamTransactions.ts",
+        role: lambdaDdbRole,
+        ...nodeJsFunctionProps,
+      },
     );
 
     // Associate the Kinesis stream to lambda_stream_transactions as an event source
