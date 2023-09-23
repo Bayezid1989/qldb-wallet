@@ -45,13 +45,13 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
    - Install awscli via brew --> aws command failed --> Install six via brew
    - Install aws-cdk
    - `aws configure sso`
-   - `cdk bootstrap aws://ACCOUNT-NUMBER/REGION` --> Error: "no credentials have been configured" --> Look into the hidden files ~/.aws/config and ~/.aws/credentials, then copy and paste the value from "Coomand line or programmatic access" popup SSO login screen. (Credential often expires hence need to update ~/.aws/credentials everytime.)
+   - `cdk bootstrap aws://ACCOUNT-NUMBER/REGION` --> Error: "no credentials have been configured" --> Look into the hidden files ~/.aws/config and ~/.aws/credentials, then copy and paste the value from "Coomand line or programmatic access" popup SSO login screen. (**Credential often expires hence need to update ~/.aws/credentials everytime.**)
 
 2. Folow [instruction to deploy CDK](https://docs.aws.amazon.com/cdk/v2/guide/hello_world.html)
 
    - Test deploy: `cdk init app --language typescript`, `npm run build`, `cdk ls`, `cdk synth`, `cdk deploy`
    - Add actual code based on [AWS Sample serverless-wallet (Python)](https://github.com/aws-samples/serverless-wallet)
-   - `cdk deploy` --> Error: "Ledger is not yet active" --> Deploy only creating QLDB and DynamoDB portions first, then after confirming Ledger is active, deploy all.
+   - `cdk deploy` --> Error: "Ledger is not yet active" --> Deploy only creating QLDB and DynamoDB portion first, then after confirming Ledger is active, deploy all.
 
 ## Post-deployment setup
 
