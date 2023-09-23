@@ -1,12 +1,12 @@
 import { UserRecord, deaggregateSync } from "aws-kinesis-agg";
-import { load, dumpText, dumpPrettyText, dom } from "ion-js";
+import { load, dumpPrettyText } from "ion-js";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import {
   Handler,
   KinesisStreamRecord,
   KinesisStreamRecordPayload,
 } from "aws-lambda";
-import { parseRevisionDetails } from "./utils";
+import { parseIonRecord } from "./utils";
 import { marshall } from "@aws-sdk/util-dynamodb";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
@@ -65,15 +65,15 @@ const promiseDeaggregate = (
 //   return [revisionData, revisionMetadata];
 // };
 
-const filteredRecordsGenerator = (
+const filterIonPayload = (
   kinesisDeaggregateRecords: UserRecord[],
   tableNames?: string[],
 ) =>
   kinesisDeaggregateRecords.reduce((acc, record) => {
     // Kinesis data in Node.js Lambdas is base64 encoded
-    const payload = Buffer.from(record.data, "base64");
+    const kinesisPayload = Buffer.from(record.data, "base64");
     // payload is the actual ion binary record published by QLDB to the stream
-    const ionRecord = load(payload);
+    const ionRecord = load(kinesisPayload);
     console.info(`Ion record: ${dumpPrettyText(ionRecord)}}`);
 
     if (
@@ -81,26 +81,24 @@ const filteredRecordsGenerator = (
       ionRecord.get("recordType")?.stringValue() ===
         REVISION_DETAILS_RECORD_TYPE
     ) {
-      const parsedRecord = parseRevisionDetails(ionRecord);
+      const payload = parseIonRecord(ionRecord);
+      console.log("revisionDetails", JSON.stringify(payload));
       // const tableInfo = getTableInfoFromRevisionRecord(ionRecord);
       // const tableName = tableInfo?.get("tableName")?.stringValue();
-      const tableInfo = parsedRecord?.payload?.tableInfo;
+      const tableInfo = payload?.tableInfo;
 
       if (
         !tableNames ||
-        (tableInfo &&
-          tableInfo?.tableName &&
-          tableNames.includes(tableInfo?.tableName))
+        (tableInfo?.tableName && tableNames.includes(tableInfo.tableName))
       ) {
         // const [revisionData, revisionMetadata] =
         //   getDataMetadataFromRevisionRecord(ionRecord);
 
-        acc.push(parsedRecord?.payload);
+        acc.push(payload);
       }
     }
-
     return acc;
-  }, [] as ReturnType<typeof parseRevisionDetails>["payload"][]);
+  }, [] as ReturnType<typeof parseIonRecord>[]);
 
 const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
 
@@ -117,17 +115,15 @@ export const handler: Handler = async (event) => {
   );
 
   // Iterate through deaggregated records
-  for (const record of filteredRecordsGenerator(userRecords, [
-    QLDB_TABLE_NAME,
-  ])) {
+  for (const payload of filterIonPayload(userRecords, [QLDB_TABLE_NAME])) {
     // const tableName = record.tableInfo?.get("tableName")?.stringValue();
     // const revisionData = record.revisionData;
     // const revisionMetadata = record.revisionMetadata;
 
-    if (record?.revision && record?.tableInfo) {
-      const { data, metadata } = record.revision;
-      const { tableName } = record.tableInfo;
-      if (data && metadata && tableName === QLDB_TABLE_NAME) {
+    if (payload?.revision && payload?.tableInfo) {
+      const { data, metadata } = payload.revision;
+      console.log("record.tableInfo", payload.tableInfo);
+      if (data && metadata && payload.tableInfo.tableName === QLDB_TABLE_NAME) {
         const txDate = metadata.txTime?.getDate();
         const ddbItem: typeof data & {
           txId: string | undefined | null;

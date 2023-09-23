@@ -69,38 +69,28 @@ export const getQldbAccountBalance = async (
   return firstDoc2.get("balance")?.numberValue() || 0;
 };
 
-export const parseRevisionDetails = (ionRecord: dom.Value) => {
+export const parseIonRecord = (ionRecord: dom.Value) => {
   const payload = ionRecord.get("payload");
   const tableInfo = payload?.get("tableInfo");
   const revision = payload?.get("revision");
-  const blockAddress = revision?.get("blockAddress");
   const data = revision?.get("data");
   const metadata = revision?.get("metadata");
 
   return {
-    qldbStreamArn: ionRecord.get("qldbStreamArn")?.stringValue(),
-    recordType: ionRecord.get("recordType")?.stringValue(),
-    payload: {
-      tableInfo: {
-        tableName: tableInfo?.get("tableName")?.stringValue(),
-        tableId: tableInfo?.get("tableId")?.stringValue(),
+    tableInfo: {
+      tableName: tableInfo?.get("tableName")?.stringValue(),
+      tableId: tableInfo?.get("tableId")?.stringValue(),
+    },
+    revision: {
+      data: {
+        accountId: data?.get("accountId")?.stringValue(),
+        balance: data?.get("balance")?.numberValue(),
       },
-      revision: {
-        blockAddress: {
-          strandId: blockAddress?.get("strandId")?.stringValue(),
-          sequenceNo: blockAddress?.get("sequenceNo")?.numberValue(),
-        },
-        hash: revision?.get("hash")?.stringValue(),
-        data: {
-          accountId: data?.get("accountId")?.stringValue(),
-          balance: data?.get("balance")?.numberValue(),
-        },
-        metadata: {
-          id: metadata?.get("id")?.stringValue(),
-          version: metadata?.get("version")?.numberValue(),
-          txTime: metadata?.get("txTime")?.timestampValue(),
-          txId: metadata?.get("txId")?.stringValue(),
-        },
+      metadata: {
+        id: metadata?.get("id")?.stringValue(),
+        version: metadata?.get("version")?.numberValue(),
+        txTime: metadata?.get("txTime")?.timestampValue(),
+        txId: metadata?.get("txId")?.stringValue(),
       },
     },
   };
