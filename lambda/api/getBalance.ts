@@ -37,19 +37,12 @@ const queryBalance = async (
 
 export const lambdaHandler = async (event: APIGatewayProxyEvent) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
-  let body: any = {};
+  const accountId = event.pathParameters?.["id"];
 
-  try {
-    body = JSON.parse(event.body || "{}");
-  } catch (error: any) {
-    return returnError(error.message, 400);
-  }
-
-  if (body.accountId) {
+  if (accountId) {
     try {
       const obj = await qldbDriver.executeLambda(
-        (executor: TransactionExecutor) =>
-          queryBalance(body.accountId, executor),
+        (executor: TransactionExecutor) => queryBalance(accountId, executor),
       );
       return obj;
     } catch (error: any) {

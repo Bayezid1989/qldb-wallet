@@ -208,7 +208,7 @@ export class QldbWalletStack extends Stack {
     // Create APIs in API Gateway
 
     // Single API with some resources(endpoints)
-    // Ref: https://qiita.com/misaosyushi/items/104445be7d7d3ba304bc
+    // Ref: https://qiita.com/misaosyushi/items/104445be7d7d3ba304bc, https://maku.blog/p/k7eoer5/
     const api = new apigw.RestApi(this, "wallet-api", {
       restApiName: "QLDB Wallet API",
       description: "Lambda functions for QLDB wallet",
