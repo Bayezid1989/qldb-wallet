@@ -30,7 +30,7 @@ export class QldbWalletStack extends Stack {
     super(scope, id, props);
 
     // Create QLDB Ledger and IAM Roles
-    const qldbLedger = new qldb.CfnLedger(this, "wallet-ledger", {
+    new qldb.CfnLedger(this, "wallet-ledger", {
       permissionsMode: "ALLOW_ALL",
       name: LEDGER_NAME,
     });
@@ -65,7 +65,7 @@ export class QldbWalletStack extends Stack {
     });
 
     // Create the QLDB stream
-    const qldbStream = new qldb.CfnStream(this, "wallet-qldb-stream", {
+    new qldb.CfnStream(this, "wallet-qldb-stream", {
       ledgerName: LEDGER_NAME,
       streamName: `qldb-stream-${LEDGER_NAME}`,
       inclusiveStartTime: "2019-06-13T21:36:34Z",
