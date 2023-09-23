@@ -1,7 +1,6 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
-import type { APIGatewayProxyEvent } from "aws-lambda";
-import { initQldbDriver, returnError } from "../util";
-import type { ReturnObj } from "../util/types";
+import type { APIGatewayProxyHandler } from "aws-lambda";
+import { initQldbDriver, returnError } from "../utils";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -11,7 +10,7 @@ const qldbDriver = initQldbDriver();
 const queryBalance = async (
   accountId: string,
   executor: TransactionExecutor,
-): Promise<ReturnObj> => {
+) => {
   const returnMessage: any = {};
 
   console.info(`Looking up balance for account with id ${accountId}`);
@@ -35,7 +34,7 @@ const queryBalance = async (
   };
 };
 
-export const lambdaHandler = async (event: APIGatewayProxyEvent) => {
+export const lambdaHandler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
   const accountId = event.pathParameters?.["id"];
 

@@ -1,8 +1,6 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
-import type { APIGatewayProxyEvent } from "aws-lambda";
-import type { dom } from "ion-js";
-import { initQldbDriver, returnError } from "../util";
-import type { ReturnObj } from "../util/types";
+import type { APIGatewayProxyHandler } from "aws-lambda";
+import { getQldbAccountBalance, initQldbDriver, returnError } from "../utils";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -13,40 +11,13 @@ const withdrawFunds = async (
   accountId: string,
   amount: number,
   executor: TransactionExecutor,
-): Promise<ReturnObj> => {
+) => {
   const returnMessage: any = {};
 
-  console.info(`Retrieving number of accounts for id ${accountId}`);
-  const res1 = await executor.execute(
-    `SELECT count(accountId) as numberOfAccounts FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
-    accountId,
-  );
-
-  const firstDoc1: dom.Value = res1.getResultList()[0];
-
-  if (firstDoc1) {
-    const numOfAccounts = firstDoc1.get("numberOfAccounts")?.numberValue();
-    if (numOfAccounts && numOfAccounts > 1) {
-      return returnError(
-        `More than one account with user id ${accountId}`,
-        500,
-      );
-    }
-    if (numOfAccounts === 0) {
-      return returnError(`Account ${accountId} not found`, 400);
-    }
-  }
-
-  console.info(`Retrieving balance for UPDATE... for ${accountId}`);
-  const res2 = await executor.execute(
-    `SELECT balance FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
-    accountId,
-  );
-
-  const firstDoc2 = res2.getResultList()[0];
+  const balance = await getQldbAccountBalance(accountId, executor);
+  if (typeof balance !== "number") return balance;
 
   console.info(`Updating balance with ${amount} for ${accountId}`);
-  const balance = firstDoc2.get("balance")?.numberValue() || 0;
   if (balance - amount < 0) {
     return returnError(
       `Funds too low. Cannot deduct ${amount} from account ${accountId}`,
@@ -70,7 +41,7 @@ const withdrawFunds = async (
   };
 };
 
-export const lambdaHandler = async (event: APIGatewayProxyEvent) => {
+export const lambdaHandler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
   let body: any = {};
 
