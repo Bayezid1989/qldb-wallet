@@ -17,8 +17,6 @@ const withdrawFunds = async (
   amount: number,
   executor: TransactionExecutor,
 ) => {
-  const returnBody: Record<string, any> = {};
-
   const balance = await checkAccountBalance(accountId, executor);
   if (typeof balance !== "number") return balance;
   if (balance - amount < 0) {
@@ -29,16 +27,15 @@ const withdrawFunds = async (
   }
 
   console.info(`Updating balance with ${amount} for ${accountId}`);
-  returnBody.accountId = accountId;
-  returnBody.oldBalance = balance;
-  returnBody.newBalance = balance - amount;
+  const newBalance = balance - amount;
+
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}" SET balance = ? WHERE accountId = ?`,
-    returnBody.newBalance,
+    newBalance,
     accountId,
   );
 
-  return returnResponse(returnBody);
+  return returnResponse({ accountId, oldBalance: balance, newBalance });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {

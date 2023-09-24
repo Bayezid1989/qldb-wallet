@@ -14,7 +14,6 @@ const transferFunds = async (
   amount: number,
   executor: TransactionExecutor,
 ) => {
-  const returnBody: Record<string, any> = {};
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
   console.info(`Retrieving accounts ${idsString}`);
   const res = await executor.execute(
@@ -52,9 +51,6 @@ const transferFunds = async (
   }
 
   console.info(`Updating balance with ${amount} for ${idsString}`);
-  returnBody.fromAccountId = fromAccountId;
-  returnBody.toAccountId = toAccountId;
-  returnBody.transferAmount = amount;
 
   // Deduct the amount from account
   await executor.execute(
@@ -70,7 +66,7 @@ const transferFunds = async (
     toAccountId,
   );
 
-  return returnResponse(returnBody);
+  return returnResponse({ fromAccountId, toAccountId, amount });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {

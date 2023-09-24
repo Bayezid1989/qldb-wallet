@@ -11,8 +11,6 @@ const queryBalance = async (
   accountId: string,
   executor: TransactionExecutor,
 ) => {
-  const returnBody: Record<string, any> = {};
-
   console.info(`Looking up balance for account with id ${accountId}`);
   const res = await executor.execute(
     `SELECT balance FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
@@ -21,13 +19,13 @@ const queryBalance = async (
   const firstRecord = res.getResultList()[0];
 
   if (firstRecord) {
-    returnBody.accountId = accountId;
-    returnBody.balance = firstRecord.get("balance")?.numberValue();
+    return returnResponse({
+      accountId,
+      balance: firstRecord.get("balance")?.numberValue(),
+    });
   } else {
     return returnError(`Account ${accountId} not found`, 400);
   }
-
-  return returnResponse(returnBody);
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
