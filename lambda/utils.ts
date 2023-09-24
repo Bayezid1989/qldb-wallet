@@ -44,35 +44,20 @@ export const checkAccountBalance = async (
   accountId: string,
   executor: TransactionExecutor,
 ): Promise<number | APIGatewayProxyResult> => {
-  console.info(`Retrieving number of accounts for id ${accountId}`);
-  const res1 = await executor.execute(
-    `SELECT count(accountId) as numberOfAccounts FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
+  console.info(`Retrieving account for id ${accountId}`);
+  const res = await executor.execute(
+    `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
     accountId,
   );
+  const records: dom.Value[] = res.getResultList();
 
-  const firstDoc1: dom.Value = res1.getResultList()[0];
-
-  if (firstDoc1) {
-    const numOfAccounts = firstDoc1.get("numberOfAccounts")?.numberValue();
-    if (numOfAccounts && numOfAccounts > 1) {
-      return returnError(
-        `More than one account with user id ${accountId}`,
-        500,
-      );
-    }
-    if (numOfAccounts === 0) {
-      return returnError(`Account ${accountId} not found`, 400);
-    }
+  if (!records.length) {
+    return returnError(`Account ${accountId} not found`, 400);
   }
-
-  console.info(`Retrieving balance for UPDATE... for ${accountId}`);
-  const res2 = await executor.execute(
-    `SELECT balance FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
-    accountId,
-  );
-
-  const firstDoc2 = res2.getResultList()[0];
-  return firstDoc2.get("balance")?.numberValue() || 0;
+  if (records.length > 1) {
+    return returnError(`More than one account with user id ${accountId}`, 500);
+  }
+  return records[0].get("balance")?.numberValue() || 0;
 };
 
 export const parseIonRecord = (ionRecord: dom.Value) => {

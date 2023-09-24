@@ -14,9 +14,9 @@ const queryTransactions = async (accountId: string) => {
     KeyConditionExpression: "accountId = :accountId",
     ExpressionAttributeValues: marshall({ ":accountId": accountId }),
   });
-  const response = await client.send(command);
+  const res = await client.send(command);
 
-  return returnResponse({ transactions: response.Items });
+  return returnResponse({ transactions: res.Items });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {

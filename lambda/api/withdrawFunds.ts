@@ -51,7 +51,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (body.accountId && body.amount && body.amount > 0) {
+  if (body.accountId && body.amount > 0) {
     try {
       const obj = await qldbDriver.executeLambda(
         (executor: TransactionExecutor) =>

@@ -81,7 +81,7 @@ export class QldbWalletStack extends Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       sortKey: { name: "txTime", type: dynamodb.AttributeType.STRING },
       removalPolicy: RemovalPolicy.DESTROY,
-      timeToLiveAttribute: "expire_timestamp",
+      timeToLiveAttribute: EXPIRE_AFTER_DAYS ? "expire_timestamp" : undefined,
     });
 
     // Create IAM Roles and policies for Lambda functions

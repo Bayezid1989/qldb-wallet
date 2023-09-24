@@ -13,14 +13,14 @@ const createAccount = async (
   executor: TransactionExecutor,
 ) => {
   console.info(`Verifying account with id ${accountId} does not exist`);
-  let res = await executor.execute(
+  const res = await executor.execute(
     `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId = ? `,
     accountId,
   );
 
-  let firstDoc: dom.Value = res.getResultList()[0];
+  const firstRecord: dom.Value = res.getResultList()[0];
 
-  if (firstDoc) {
+  if (firstRecord) {
     return returnError(`Account with user id ${accountId} already exists`, 400);
   } else {
     const doc = { accountId, balance: 0 };

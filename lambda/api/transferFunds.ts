@@ -15,38 +15,36 @@ const transferFunds = async (
   executor: TransactionExecutor,
 ) => {
   const returnBody: Record<string, any> = {};
-  const idsString = `accounts(From: ${fromAccountId}, To: ${toAccountId})`;
-  console.info(`Retrieving number of accounts for ${idsString}`);
-  const res1 = await executor.execute(
-    `SELECT count(accountId) as numberOfAccounts FROM "${QLDB_TABLE_NAME}" WHERE accountId IN (?, ?)`,
+  const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
+  console.info(`Retrieving accounts ${idsString}`);
+  const res = await executor.execute(
+    `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId IN (?, ?)`,
     fromAccountId,
     toAccountId,
   );
 
-  const firstDoc1: dom.Value = res1.getResultList()[0];
-
-  if (firstDoc1) {
-    const numOfAccounts = firstDoc1.get("numberOfAccounts")?.numberValue();
-    if (numOfAccounts && numOfAccounts > 2) {
-      return returnError(`Account count is more than 2 with ${idsString}`, 500);
-    }
-    if (!numOfAccounts || numOfAccounts < 2) {
-      return returnError(
-        `Either or both account(s) is(are) not found with ${idsString}`,
-        400,
-      );
-    }
+  const records: dom.Value[] = res.getResultList();
+  if (!records.length) {
+    return returnError(`Both accounts are found. ${idsString}`, 400);
   }
-
-  console.info(`Retrieving balance for UPDATE... for ${idsString}`);
-  const res2 = await executor.execute(
-    `SELECT balance FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
-    fromAccountId,
+  if (records.length > 2) {
+    return returnError(`More than 2 accounts for ids${idsString}`, 500);
+  }
+  const fromAccount = records.find(
+    (doc) => doc.get("accountId")?.stringValue() === fromAccountId,
+  );
+  const toAccount = records.find(
+    (doc) => doc.get("accountId")?.stringValue() === toAccountId,
   );
 
-  const firstDoc2 = res2.getResultList()[0];
-  const balance = firstDoc2.get("balance")?.numberValue() || 0;
-  if (balance - amount < 0) {
+  if (!fromAccount) {
+    return returnError(`From account ${fromAccountId} not found.`, 400);
+  }
+  if (!toAccount) {
+    return returnError(`To account ${toAccountId} not found.`, 400);
+  }
+  const fromBalance = fromAccount.get("balance")?.numberValue() || 0;
+  if (fromBalance - amount < 0) {
     return returnError(
       `Funds too low. Cannot deduct ${amount} from account ${fromAccountId}`,
       400,
@@ -58,15 +56,17 @@ const transferFunds = async (
   returnBody.toAccountId = toAccountId;
   returnBody.transferAmount = amount;
 
+  // Deduct the amount from account
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}"
-    SET balance = CASE WHEN accountId = ? THEN balance - ? WHEN accountId = ? THEN balance + ? ELSE balance END
-    WHERE accountId IN (?, ?)`,
-    fromAccountId,
-    amount,
-    toAccountId,
+    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance - ? WHERE accountId = ?`,
     amount,
     fromAccountId,
+  );
+
+  // Add the amount to account
+  await executor.execute(
+    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance + ? WHERE accountId = ?`,
+    amount,
     toAccountId,
   );
 
@@ -83,12 +83,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (
-    body.fromAccountId &&
-    body.toAccountId &&
-    body.amount &&
-    body.amount > 0
-  ) {
+  if (body.fromAccountId && body.toAccountId && body.amount > 0) {
     try {
       const res = await qldbDriver.executeLambda((executor) =>
         transferFunds(

@@ -18,11 +18,11 @@ const queryBalance = async (
     `SELECT balance FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
     accountId,
   );
-  const firstDoc = res.getResultList()[0];
+  const firstRecord = res.getResultList()[0];
 
-  if (firstDoc) {
+  if (firstRecord) {
     returnBody.accountId = accountId;
-    returnBody.balance = firstDoc.get("balance")?.numberValue();
+    returnBody.balance = firstRecord.get("balance")?.numberValue();
   } else {
     return returnError(`Account ${accountId} not found`, 400);
   }
