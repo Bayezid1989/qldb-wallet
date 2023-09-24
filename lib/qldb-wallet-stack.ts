@@ -251,18 +251,18 @@ export class QldbWalletStack extends Stack {
       },
     });
 
+    const createAccountRsc = api.root.addResource("createAccount");
+    createAccountRsc.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(lambdaCreateAccount),
+    );
+
     const getBalanceRsc = api.root
       .addResource("getBalance")
       .addResource("{accountId}");
     getBalanceRsc.addMethod(
       "GET",
       new apigw.LambdaIntegration(lambdaGetBalance),
-    );
-
-    const createAccountRsc = api.root.addResource("createAccount");
-    createAccountRsc.addMethod(
-      "POST",
-      new apigw.LambdaIntegration(lambdaCreateAccount),
     );
 
     const withdrawFundsRsc = api.root.addResource("withdrawFunds");
@@ -273,6 +273,12 @@ export class QldbWalletStack extends Stack {
 
     const addFundsRsc = api.root.addResource("addFunds");
     addFundsRsc.addMethod("POST", new apigw.LambdaIntegration(lambdaAddFunds));
+
+    const transferFundsRsc = api.root.addResource("transferFunds");
+    transferFundsRsc.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(lambdaTransferFunds),
+    );
 
     const getTransactionsRsc = api.root
       .addResource("getTransactions")
