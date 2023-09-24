@@ -1,7 +1,7 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import {
-  getQldbAccountBalance,
+  checkAccountBalance,
   initQldbDriver,
   returnError,
   returnResponse,
@@ -19,7 +19,7 @@ const withdrawFunds = async (
 ) => {
   const returnBody: Record<string, any> = {};
 
-  const balance = await getQldbAccountBalance(accountId, executor);
+  const balance = await checkAccountBalance(accountId, executor);
   if (typeof balance !== "number") return balance;
   if (balance - amount < 0) {
     return returnError(

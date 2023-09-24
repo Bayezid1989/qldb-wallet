@@ -18,7 +18,6 @@ import { config } from "../config";
 const LEDGER_NAME = config.ledgerName;
 const ACCOUNT = process.env.CDK_DEFAULT_ACCOUNT;
 const REGION = process.env.CDK_DEFAULT_REGION;
-const LOG_LEVEL = config.logLevel;
 const QLDB_TABLE_NAME = config.qldbTableName;
 const LOG_RETENTION = config.logRetention;
 const SHARD_COUNT = config.shardCount;
@@ -125,6 +124,16 @@ export class QldbWalletStack extends Stack {
       handler: "handler",
     };
 
+    const lambdaCreateAccount = new lambdaNodeJs.NodejsFunction(
+      this,
+      "create-account-lambda",
+      {
+        entry: "lambda/api/createAccount.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
+    );
+
     const lambdaGetBalance = new lambdaNodeJs.NodejsFunction(
       this,
       "get-balance-lambda",
@@ -155,11 +164,11 @@ export class QldbWalletStack extends Stack {
       },
     );
 
-    const lambdaCreateAccount = new lambdaNodeJs.NodejsFunction(
+    const lambdaTransferFunds = new lambdaNodeJs.NodejsFunction(
       this,
-      "create-account-lambda",
+      "transfer-funds-lambda",
       {
-        entry: "lambda/api/createAccount.ts",
+        entry: "lambda/api/transferFunds.ts",
         role: lambdaQldbRole,
         ...nodeJsFunctionProps,
       },
@@ -201,13 +210,13 @@ export class QldbWalletStack extends Stack {
       lambdaGetBalance,
       lambdaWithdrawFunds,
       lambdaAddFunds,
+      lambdaTransferFunds,
       lambdaGetTransactions,
       lambdaStreamTransactions,
     ];
     for (const lmbd of lambdas) {
       lmbd.addEnvironment("LEDGER_NAME", LEDGER_NAME);
       lmbd.addEnvironment("QLDB_TABLE_NAME", QLDB_TABLE_NAME);
-      lmbd.addEnvironment("LOG_LEVEL", LOG_LEVEL);
     }
 
     const ddbTableName = `wallet-transactions-${LEDGER_NAME}`;

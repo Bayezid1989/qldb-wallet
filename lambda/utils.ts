@@ -40,7 +40,7 @@ export const initQldbDriver = () => {
   return new QldbDriver(LEDGER_NAME, retryConfig);
 };
 
-export const getQldbAccountBalance = async (
+export const checkAccountBalance = async (
   accountId: string,
   executor: TransactionExecutor,
 ): Promise<number | APIGatewayProxyResult> => {
@@ -91,6 +91,15 @@ export const parseIonRecord = (ionRecord: dom.Value) => {
       data: {
         accountId: data?.get("accountId")?.stringValue(),
         balance: data?.get("balance")?.numberValue(),
+        // txAmount: data?.get("txAmount")?.numberValue(),
+        // txFrom: data?.get("txFrom")?.isNull()
+        //   ? null
+        //   : data?.get("txFrom")?.stringValue(),
+        // txTo: data?.get("txTo")?.isNull()
+        //   ? null
+        //   : data?.get("txTo")?.stringValue(),
+        // txType: data?.get("txType")?.stringValue(),
+        // txRequestId: data?.get("txRequestId")?.stringValue(),
       },
       metadata: {
         id: metadata?.get("id")?.stringValue(),
