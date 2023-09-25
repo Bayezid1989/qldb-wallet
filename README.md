@@ -24,9 +24,9 @@ The **body** of the request must be a JSON object with the following attributes:
 - getBalance: `/accountId`
 - getTransactions: `/accountId`
 - createAccount: `{ "accountId": "<accountId>" }`
-- withdrawFunds: `{ "accountId": "<accountId>", "amount": <number> }`
-- addFunds: `{ "accountId": "<accountId>", "amount": <number> }`
-- transferFunds: `{ "fromAccountId": "<accountId>", "toAccountId": "<accountId>", "amount": <number> }`
+- withdrawFunds: `{ "accountId": "<accountId>", "amount": <number>, txRequestId: <txRequestId> }`
+- addFunds: `{ "accountId": "<accountId>", "amount": <number>, txRequestId: <txRequestId> }`
+- transferFunds: `{ "fromAccountId": "<accountId>", "toAccountId": "<accountId>", "amount": <number>, txRequestId: <txRequestId> }`
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 

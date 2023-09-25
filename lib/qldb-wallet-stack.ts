@@ -21,7 +21,8 @@ const REGION = process.env.CDK_DEFAULT_REGION;
 const QLDB_TABLE_NAME = config.qldbTableName;
 const LOG_RETENTION = config.logRetention;
 const SHARD_COUNT = config.shardCount;
-const EXPIRE_AFTER_DAYS = config.expireAfterDays;
+const EXPIRE_AFTER_DAYS =
+  "expireAfterDays" in config ? config.expireAfterDays : undefined;
 
 export class QldbWalletStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {

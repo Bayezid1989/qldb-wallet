@@ -6,5 +6,5 @@ export const config = {
   logLevel: "ERROR|INFO|DEBUG",
   qldbTableName: "Wallet",
   shardCount: 1, // Kinesis Stream shard count
-  expireAfterDays: 365, // This property needs to be set to enable TTL on the transactions table in DynamoDB
+  // expireAfterDays: 365, // This property needs to be set to enable TTL on the transactions table in DynamoDB
 };
