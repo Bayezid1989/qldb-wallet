@@ -112,7 +112,7 @@ export const parseIonRecord = (ionRecord: dom.Value | null) => {
   };
 };
 
-//  Ion record: {
+// Ion record: {
 //   qldbStreamArn: "arn:aws:qldb:ap-northeast-1:670756400362:stream/test-wallet/0FyCS5aYSysK7aD7h8wvp3",
 //   recordType: "REVISION_DETAILS",
 //   payload: {
@@ -123,18 +123,23 @@ export const parseIonRecord = (ionRecord: dom.Value | null) => {
 //     revision: {
 //       blockAddress: {
 //         strandId: "A2mzwAutFNnJm2ho9nls4q",
-//         sequenceNo: 26
+//         sequenceNo: 711
 //       },
-//       hash: {{KGQhnyXb/BltXwCY9WPc0y1B8JLk/ok6w5YiaKweOvc=}},
+//       hash: {{j5yn00sQj4clTrEN4vka5BrbVjQ+v41wBSqjj9AFveA=}},
 //       data: {
 //         accountId: "user1",
-//         balance: 0
+//         balance: 3000,
+//         txAmount: 500,
+//         txFrom: null,
+//         txTo: "user1",
+//         txType: "DEPOSIT",
+//         txRequestId: "req5"
 //       },
 //       metadata: {
 //         id: "59NbC9MoyMw4vsTsoNROxX",
-//         version: 0,
-//         txTime: 2023-09-23T07:45:10.121Z,
-//         txId: "GE2lVViZmSY6QHl0OmvsmN"
+//         version: 15,
+//         txTime: 2023-09-25T06:34:30.619Z,
+//         txId: "0007t6JMyzMK2LEscgWJ28"
 //       }
 //     }
 //   }

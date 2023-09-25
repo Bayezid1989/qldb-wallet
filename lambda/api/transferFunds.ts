@@ -33,7 +33,7 @@ const transferFunds = async (
 
   const records: dom.Value[] = res.getResultList();
   if (!records.length) {
-    return returnError(`Both accounts are found. ${idsString}`, 400);
+    return returnError(`Both accounts${idsString} not found.`, 400);
   }
   if (records.length > 2) {
     return returnError(`More than 2 accounts for ids${idsString}`, 500);
@@ -75,7 +75,7 @@ const transferFunds = async (
     );
   }
 
-  console.info(`Updating balance with ${amount} for ${idsString}`);
+  console.info(`Updating balance with ${amount} for accounts${idsString}`);
 
   // Deduct the amount from account
   await executor.execute(

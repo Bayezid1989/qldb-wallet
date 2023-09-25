@@ -24,7 +24,7 @@ const addFunds = async (
   const balance = await checkAccountBalance(accountId, txRequestId, executor);
   if (typeof balance !== "number") return balance;
 
-  console.info(`Updating balance with ${amount} for ${accountId}`);
+  console.info(`Updating balance with ${amount} for account ${accountId}`);
   const newBalance = balance + amount;
 
   await executor.execute(

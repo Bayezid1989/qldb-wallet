@@ -29,7 +29,7 @@ const withdrawFunds = async (
     );
   }
 
-  console.info(`Updating balance with ${amount} for ${accountId}`);
+  console.info(`Updating balance with ${amount} for account ${accountId}`);
   const newBalance = balance - amount;
 
   await executor.execute(

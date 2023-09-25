@@ -21,9 +21,10 @@ const createAccount = async (
   const firstRecord: dom.Value = res.getResultList()[0];
 
   if (firstRecord) {
-    return returnError(`Account with user id ${accountId} already exists`, 400);
+    return returnError(`Account ${accountId} already exists`, 400);
   } else {
-    const doc = {
+    console.log(`Creating account with id ${accountId}`);
+    await executor.execute(`INSERT INTO "${QLDB_TABLE_NAME}" ?`, {
       accountId,
       balance: 0,
 
@@ -33,11 +34,7 @@ const createAccount = async (
       txTo: null,
       txType: null,
       txRequestId: null,
-    };
-    console.log(
-      `Creating account with id ${accountId} and balance = ${doc.balance}`,
-    );
-    await executor.execute(`INSERT INTO "${QLDB_TABLE_NAME}" ?`, doc);
+    });
   }
 
   return returnResponse({ accountId });

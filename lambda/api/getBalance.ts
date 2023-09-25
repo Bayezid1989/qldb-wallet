@@ -16,7 +16,7 @@ const queryBalance = async (
   accountId: string,
   executor: TransactionExecutor,
 ) => {
-  console.info(`Looking up balance for account with id ${accountId}`);
+  console.info(`Looking up balance for account ${accountId}`);
   const res = await executor.execute(
     `SELECT balance FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
     accountId,

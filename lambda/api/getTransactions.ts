@@ -13,7 +13,7 @@ const queryTransactions = async (
   beforeDate?: string, // ISO 8601
 ) => {
   console.info(
-    `Querying DynamoDB for account ${accountId} with afterDate: ${
+    `Querying transactions for account ${accountId} with afterDate: ${
       afterDate || "undefiend"
     } and beforeDate: ${beforeDate || "undefiend"}`,
   );
