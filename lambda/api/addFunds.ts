@@ -5,7 +5,8 @@ import {
   initQldbDriver,
   returnError,
   returnResponse,
-} from "../utils";
+} from "../util/util";
+import { TX_TYPE } from "../util/constant";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -16,21 +17,33 @@ const qldbDriver = initQldbDriver();
 const addFunds = async (
   accountId: string,
   amount: number,
+  txType = TX_TYPE.DEPOSIT,
+  txRequestId: string,
   executor: TransactionExecutor,
 ) => {
-  const balance = await checkAccountBalance(accountId, executor);
+  const balance = await checkAccountBalance(accountId, txRequestId, executor);
   if (typeof balance !== "number") return balance;
 
   console.info(`Updating balance with ${amount} for ${accountId}`);
   const newBalance = balance + amount;
 
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}" SET balance = ?, txAmount = ?, txFrom = NULL, txTo = ?, txType = ?, txRequestId = ? WHERE accountId = ?`,
     newBalance,
+    amount,
+    accountId,
+    txType,
+    txRequestId,
     accountId,
   );
 
-  return returnResponse({ accountId, oldBalance: balance, newBalance });
+  return returnResponse({
+    accountId,
+    oldBalance: balance,
+    newBalance,
+    txType,
+    txRequestId,
+  });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -43,10 +56,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (body.accountId && body.amount > 0) {
+  if (body.accountId && body.txRequestId && body.amount > 0) {
     try {
       const res = await qldbDriver.executeLambda((executor) =>
-        addFunds(body.accountId, body.amount, executor),
+        addFunds(
+          body.accountId,
+          body.amount,
+          body.txType,
+          body.txRequestId,
+          executor,
+        ),
       );
       return res;
     } catch (error: any) {
@@ -54,7 +73,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   } else {
     return returnError(
-      "accountId and amount not specified, or amount is less than zero",
+      "accountId, amount or txRequestId not specified, or amount is less than zero",
       400,
     );
   }

@@ -1,7 +1,7 @@
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { returnError, returnResponse } from "../utils";
+import { returnError, returnResponse } from "../util/util";
 
 const client = new DynamoDBClient();
 const TABLE_NAME = process.env.DDB_TABLE_NAME || "";

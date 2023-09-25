@@ -5,7 +5,8 @@ import {
   initQldbDriver,
   returnError,
   returnResponse,
-} from "../utils";
+} from "../util/util";
+import { TX_TYPE } from "../util/constant";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -15,9 +16,11 @@ const qldbDriver = initQldbDriver();
 const withdrawFunds = async (
   accountId: string,
   amount: number,
+  txType = TX_TYPE.WITHDRAW,
+  txRequestId: string,
   executor: TransactionExecutor,
 ) => {
-  const balance = await checkAccountBalance(accountId, executor);
+  const balance = await checkAccountBalance(accountId, txRequestId, executor);
   if (typeof balance !== "number") return balance;
   if (balance - amount < 0) {
     return returnError(
@@ -30,12 +33,22 @@ const withdrawFunds = async (
   const newBalance = balance - amount;
 
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}" SET balance = ?, txAmount = ?, txFrom = ?, txTo = NULL, txType = ?, txRequestId = ? WHERE accountId = ?`,
     newBalance,
+    amount,
+    accountId,
+    txType,
+    txRequestId,
     accountId,
   );
 
-  return returnResponse({ accountId, oldBalance: balance, newBalance });
+  return returnResponse({
+    accountId,
+    oldBalance: balance,
+    newBalance,
+    txType,
+    txRequestId,
+  });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -48,11 +61,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (body.accountId && body.amount > 0) {
+  if (body.accountId && body.txRequestId && body.amount > 0) {
     try {
       const obj = await qldbDriver.executeLambda(
         (executor: TransactionExecutor) =>
-          withdrawFunds(body.accountId, body.amount, executor),
+          withdrawFunds(
+            body.accountId,
+            body.amount,
+            body.txType,
+            body.txRequestId,
+            executor,
+          ),
       );
       return obj;
     } catch (error: any) {
@@ -60,7 +79,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   } else {
     return returnError(
-      "accountId and amount not specified, or amount is less than zero",
+      "accountId, amount or txRequestId not specified, or amount is less than zero",
       400,
     );
   }

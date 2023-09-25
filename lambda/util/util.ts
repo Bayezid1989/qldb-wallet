@@ -6,7 +6,7 @@ import {
 import { APIGatewayProxyResult } from "aws-lambda";
 import type { dom } from "ion-js";
 
-import { config } from "../config";
+import { config } from "../../config";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -40,13 +40,26 @@ export const initQldbDriver = () => {
   return new QldbDriver(LEDGER_NAME, retryConfig);
 };
 
+const isIonNull = (ion: dom.Value | null | undefined, key: string) =>
+  !ion || !ion.get(key) || ion.get(key)?.isNull();
+
+export const ionString = (ion: dom.Value | null | undefined, key: string) =>
+  isIonNull(ion, key) ? null : ion?.get(key)?.stringValue();
+
+export const ionNumber = (ion: dom.Value | null | undefined, key: string) =>
+  isIonNull(ion, key) ? null : ion?.get(key)?.numberValue();
+
+export const ionTimestamp = (ion: dom.Value | null | undefined, key: string) =>
+  isIonNull(ion, key) ? null : ion?.get(key)?.timestampValue();
+
 export const checkAccountBalance = async (
   accountId: string,
+  txRequestId: string,
   executor: TransactionExecutor,
 ): Promise<number | APIGatewayProxyResult> => {
   console.info(`Retrieving account for id ${accountId}`);
   const res = await executor.execute(
-    `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
+    `SELECT accountId, balance, txRequestId FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
     accountId,
   );
   const records: dom.Value[] = res.getResultList();
@@ -57,11 +70,18 @@ export const checkAccountBalance = async (
   if (records.length > 1) {
     return returnError(`More than one account with user id ${accountId}`, 500);
   }
-  return records[0].get("balance")?.numberValue() || 0;
+  const record = records[0];
+  if (ionString(record, "txRequestId") === txRequestId) {
+    return returnError(
+      `Transaction Request ${txRequestId} is already processed`,
+      400,
+    );
+  }
+  return ionNumber(record, "balance") || 0;
 };
 
-export const parseIonRecord = (ionRecord: dom.Value) => {
-  const payload = ionRecord.get("payload");
+export const parseIonRecord = (ionRecord: dom.Value | null) => {
+  const payload = ionRecord?.get("payload");
   const tableInfo = payload?.get("tableInfo");
   const revision = payload?.get("revision");
   const data = revision?.get("data");
@@ -69,28 +89,24 @@ export const parseIonRecord = (ionRecord: dom.Value) => {
 
   return {
     tableInfo: {
-      tableName: tableInfo?.get("tableName")?.stringValue(),
-      tableId: tableInfo?.get("tableId")?.stringValue(),
+      tableName: ionString(tableInfo, "tableName"),
+      tableId: ionString(tableInfo, "tableId"),
     },
     revision: {
       data: {
-        accountId: data?.get("accountId")?.stringValue(),
-        balance: data?.get("balance")?.numberValue(),
-        // txAmount: data?.get("txAmount")?.numberValue(),
-        // txFrom: data?.get("txFrom")?.isNull()
-        //   ? null
-        //   : data?.get("txFrom")?.stringValue(),
-        // txTo: data?.get("txTo")?.isNull()
-        //   ? null
-        //   : data?.get("txTo")?.stringValue(),
-        // txType: data?.get("txType")?.stringValue(),
-        // txRequestId: data?.get("txRequestId")?.stringValue(),
+        accountId: ionString(data, "accountId"),
+        balance: ionNumber(data, "balance"),
+
+        // Last transaction data
+        txAmount: ionNumber(data, "txAmount"),
+        txFrom: ionString(data, "txFrom"),
+        txTo: ionString(data, "txTo"),
+        txType: ionString(data, "txType"),
+        txRequestId: ionString(data, "txRequestId"),
       },
       metadata: {
-        id: metadata?.get("id")?.stringValue(),
-        version: metadata?.get("version")?.numberValue(),
-        txTime: metadata?.get("txTime")?.timestampValue(),
-        txId: metadata?.get("txId")?.stringValue(),
+        txTime: ionTimestamp(metadata, "txTime"),
+        txId: ionString(metadata, "txId"),
       },
     },
   };

@@ -6,7 +6,7 @@ import {
   KinesisStreamRecord,
   KinesisStreamRecordPayload,
 } from "aws-lambda";
-import { parseIonRecord } from "./utils";
+import { ionString, parseIonRecord } from "./util/util";
 import { marshall } from "@aws-sdk/util-dynamodb";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
@@ -46,11 +46,7 @@ const filterIonPayload = (
     const ionRecord = load(kinesisPayload);
     console.info(`Ion record: ${dumpPrettyText(ionRecord)}}`);
 
-    if (
-      ionRecord &&
-      ionRecord.get("recordType")?.stringValue() ===
-        REVISION_DETAILS_RECORD_TYPE
-    ) {
+    if (ionString(ionRecord, "recordType") === REVISION_DETAILS_RECORD_TYPE) {
       const payload = parseIonRecord(ionRecord);
       const tableInfo = payload?.tableInfo;
 
@@ -82,25 +78,27 @@ export const handler: Handler = async (event) => {
   for (const payload of filterIonPayload(userRecords, [QLDB_TABLE_NAME])) {
     if (payload?.revision && payload?.tableInfo) {
       const { data, metadata } = payload.revision;
-      console.log("record.tableInfo", payload.tableInfo);
       if (data && metadata && payload.tableInfo.tableName === QLDB_TABLE_NAME) {
         const txDate = metadata.txTime?.getDate();
 
         const ddbItem: typeof data & {
           txId: string | undefined | null;
           txTime: string | undefined | null;
-          timestamp: number | undefined;
+          timestamp?: number | undefined;
           expire_timestamp?: number;
         } = {
           ...data,
           txId: metadata.txId,
           txTime: txDate?.toISOString(),
-          timestamp: txDate?.getTime(),
         };
 
-        if (EXPIRE_AFTER_DAYS && ddbItem.timestamp) {
-          ddbItem.expire_timestamp =
-            ddbItem.timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
+        if (EXPIRE_AFTER_DAYS) {
+          const timestamp = txDate?.getTime();
+          if (timestamp) {
+            ddbItem.timestamp = timestamp;
+            ddbItem.expire_timestamp =
+              timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
+          }
         }
 
         const putCommand = new PutItemCommand({

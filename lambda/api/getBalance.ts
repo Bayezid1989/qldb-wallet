@@ -1,6 +1,11 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { initQldbDriver, returnError, returnResponse } from "../utils";
+import {
+  initQldbDriver,
+  ionNumber,
+  returnError,
+  returnResponse,
+} from "../util/util";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -21,7 +26,7 @@ const queryBalance = async (
   if (firstRecord) {
     return returnResponse({
       accountId,
-      balance: firstRecord.get("balance")?.numberValue(),
+      balance: ionNumber(firstRecord, "balance"),
     });
   } else {
     return returnError(`Account ${accountId} not found`, 400);

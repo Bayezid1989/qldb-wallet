@@ -1,7 +1,7 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import type { dom } from "ion-js";
-import { initQldbDriver, returnError, returnResponse } from "../utils";
+import { initQldbDriver, returnError, returnResponse } from "../util/util";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -14,7 +14,7 @@ const createAccount = async (
 ) => {
   console.info(`Verifying account with id ${accountId} does not exist`);
   const res = await executor.execute(
-    `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId = ? `,
+    `SELECT accountId FROM "${QLDB_TABLE_NAME}" WHERE accountId = ? `,
     accountId,
   );
 
@@ -23,7 +23,17 @@ const createAccount = async (
   if (firstRecord) {
     return returnError(`Account with user id ${accountId} already exists`, 400);
   } else {
-    const doc = { accountId, balance: 0 };
+    const doc = {
+      accountId,
+      balance: 0,
+
+      // Last transaction data
+      txAmount: null,
+      txFrom: null,
+      txTo: null,
+      txType: null,
+      txRequestId: null,
+    };
     console.log(
       `Creating account with id ${accountId} and balance = ${doc.balance}`,
     );

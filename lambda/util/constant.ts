@@ -1,0 +1,5 @@
+export const TX_TYPE = {
+  DEPOSIT: "DEPOSIT",
+  WITHDRAW: "WITHDRAW",
+  TRANSFER: "TRANSFER",
+};

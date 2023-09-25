@@ -1,7 +1,14 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import type { dom } from "ion-js";
-import { initQldbDriver, returnError, returnResponse } from "../utils";
+import {
+  initQldbDriver,
+  ionNumber,
+  ionString,
+  returnError,
+  returnResponse,
+} from "../util/util";
+import { TX_TYPE } from "../util/constant";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
@@ -12,12 +19,14 @@ const transferFunds = async (
   fromAccountId: string,
   toAccountId: string,
   amount: number,
+  txType = TX_TYPE.TRANSFER,
+  txRequestId: string,
   executor: TransactionExecutor,
 ) => {
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
   console.info(`Retrieving accounts ${idsString}`);
   const res = await executor.execute(
-    `SELECT * FROM "${QLDB_TABLE_NAME}" WHERE accountId IN (?, ?)`,
+    `SELECT accountId, balance, txRequestId FROM "${QLDB_TABLE_NAME}" WHERE accountId IN (?, ?)`,
     fromAccountId,
     toAccountId,
   );
@@ -29,12 +38,21 @@ const transferFunds = async (
   if (records.length > 2) {
     return returnError(`More than 2 accounts for ids${idsString}`, 500);
   }
-  const fromAccount = records.find(
-    (doc) => doc.get("accountId")?.stringValue() === fromAccountId,
-  );
-  const toAccount = records.find(
-    (doc) => doc.get("accountId")?.stringValue() === toAccountId,
-  );
+
+  let fromAccount: dom.Value | undefined;
+  let toAccount: dom.Value | undefined;
+  let hasSameRequestId = false;
+
+  records.forEach((record) => {
+    if (ionString(record, "accountId") === fromAccountId) {
+      fromAccount = record;
+    } else if (ionString(record, "accountId") === toAccountId) {
+      toAccount = record;
+    }
+    if (ionString(record, "txRequestId") === txRequestId) {
+      hasSameRequestId = true;
+    }
+  });
 
   if (!fromAccount) {
     return returnError(`From account ${fromAccountId} not found.`, 400);
@@ -42,7 +60,14 @@ const transferFunds = async (
   if (!toAccount) {
     return returnError(`To account ${toAccountId} not found.`, 400);
   }
-  const fromBalance = fromAccount.get("balance")?.numberValue() || 0;
+  if (hasSameRequestId) {
+    return returnError(
+      `Transaction Request ${txRequestId} is already processed`,
+      400,
+    );
+  }
+
+  const fromBalance = ionNumber(fromAccount, "balance") || 0;
   if (fromBalance - amount < 0) {
     return returnError(
       `Funds too low. Cannot deduct ${amount} from account ${fromAccountId}`,
@@ -54,19 +79,35 @@ const transferFunds = async (
 
   // Deduct the amount from account
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance - ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance - ?, txAmount = ?, txFrom = ?, txTo = ?, txType = ?, txRequestId = ? WHERE accountId = ?`,
     amount,
+    amount,
+    fromAccountId,
+    toAccountId,
+    txType,
+    txRequestId,
     fromAccountId,
   );
 
   // Add the amount to account
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance + ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance + ?, txAmount = ?, txFrom = ?, txTo = ?, txType = ?, txRequestId = ? WHERE accountId = ?`,
     amount,
+    amount,
+    fromAccountId,
+    toAccountId,
+    txType,
+    txRequestId,
     toAccountId,
   );
 
-  return returnResponse({ fromAccountId, toAccountId, amount });
+  return returnResponse({
+    fromAccountId,
+    toAccountId,
+    amount,
+    txType,
+    txRequestId,
+  });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -79,13 +120,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (body.fromAccountId && body.toAccountId && body.amount > 0) {
+  if (
+    body.fromAccountId &&
+    body.toAccountId &&
+    body.txRequestId &&
+    body.amount > 0
+  ) {
     try {
       const res = await qldbDriver.executeLambda((executor) =>
         transferFunds(
           body.fromAccountId,
           body.toAccountId,
           body.amount,
+          body.txType,
+          body.txRequestId,
           executor,
         ),
       );
@@ -95,7 +143,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   } else {
     return returnError(
-      "accountId and amount not specified, or amount is less than zero",
+      "accountId, amount or txRequestId not specified, or amount is less than zero",
       400,
     );
   }
