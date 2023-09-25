@@ -35,7 +35,7 @@ const queryBalance = async (
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
-  const accountId = event.pathParameters?.["accountId"];
+  const accountId = event.pathParameters?.accountId;
 
   if (accountId) {
     try {

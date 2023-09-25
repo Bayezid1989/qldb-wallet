@@ -7,12 +7,37 @@ const client = new DynamoDBClient();
 const TABLE_NAME = process.env.DDB_TABLE_NAME || "";
 
 // Ref: DynamoDB Query: https://docs.aws.amazon.com/ja_jp/amazondynamodb/latest/developerguide/GettingStarted.Query.html
-const queryTransactions = async (accountId: string) => {
-  console.info(`Querying DynamoDB for account with id ${accountId}`);
+const queryTransactions = async (
+  accountId: string,
+  afterDate?: string, // ISO 8601
+  beforeDate?: string, // ISO 8601
+) => {
+  console.info(
+    `Querying DynamoDB for account ${accountId} with afterDate: ${
+      afterDate || "undefiend"
+    } and beforeDate: ${beforeDate || "undefiend"}`,
+  );
+
+  let condition = "accountId = :accountId";
+  const attributeValues: Record<string, string> = {
+    ":accountId": accountId,
+  };
+  if (afterDate && beforeDate) {
+    condition += " AND txTime BETWEEN :afterDate AND :beforeDate";
+    attributeValues[`:afterDate`] = afterDate;
+    attributeValues[`:beforeDate`] = beforeDate;
+  } else if (afterDate) {
+    condition += " AND txTime >= :afterDate";
+    attributeValues[`:afterDate`] = afterDate;
+  } else if (beforeDate) {
+    condition += " AND txTime <= :beforeDate";
+    attributeValues[`:beforeDate`] = beforeDate;
+  }
+
   const command = new QueryCommand({
     TableName: TABLE_NAME,
-    KeyConditionExpression: "accountId = :accountId",
-    ExpressionAttributeValues: marshall({ ":accountId": accountId }),
+    KeyConditionExpression: condition,
+    ExpressionAttributeValues: marshall(attributeValues),
   });
   const res = await client.send(command);
 
@@ -21,11 +46,13 @@ const queryTransactions = async (accountId: string) => {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
-  const accountId = event.pathParameters?.["accountId"];
+  const accountId = event.pathParameters?.accountId;
+  const afterDate = event.queryStringParameters?.afterDate;
+  const beforeDate = event.queryStringParameters?.beforeDate;
 
   if (accountId) {
     try {
-      const res = await queryTransactions(accountId);
+      const res = await queryTransactions(accountId, afterDate, beforeDate);
       return res;
     } catch (error: any) {
       return returnError(error.message, 500);
