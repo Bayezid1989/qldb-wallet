@@ -35,30 +35,29 @@ const promiseDeaggregate = (
     });
   });
 
-const filterIonPayload = (
-  kinesisDeaggregateRecords: UserRecord[],
+const getRevisionDetailsPayload = (
+  record: UserRecord,
   tableNames?: string[],
-) =>
-  kinesisDeaggregateRecords.reduce((acc, record) => {
-    // Kinesis data in Node.js Lambdas is base64 encoded
-    const kinesisPayload = Buffer.from(record.data, "base64");
-    // payload is the actual ion binary record published by QLDB to the stream
-    const ionRecord = load(kinesisPayload);
-    console.info(`Ion record: ${dumpPrettyText(ionRecord)}}`);
+) => {
+  // Kinesis data in Node.js Lambdas is base64 encoded
+  const kinesisPayload = Buffer.from(record.data, "base64");
+  // payload is the actual ion binary record published by QLDB to the stream
+  const ionRecord = load(kinesisPayload);
+  console.info(`Ion record: ${dumpPrettyText(ionRecord)}}`);
 
-    if (ionString(ionRecord, "recordType") === REVISION_DETAILS_RECORD_TYPE) {
-      const payload = parseIonRecord(ionRecord);
-      const tableInfo = payload?.tableInfo;
+  if (ionString(ionRecord, "recordType") === REVISION_DETAILS_RECORD_TYPE) {
+    const payload = parseIonRecord(ionRecord);
+    const tableInfo = payload?.tableInfo;
 
-      if (
-        !tableNames ||
-        (tableInfo?.tableName && tableNames.includes(tableInfo.tableName))
-      ) {
-        acc.push(payload);
-      }
+    if (
+      !tableNames ||
+      (tableInfo?.tableName && tableNames.includes(tableInfo.tableName))
+    ) {
+      return payload;
     }
-    return acc;
-  }, [] as ReturnType<typeof parseIonRecord>[]);
+  }
+  return null;
+};
 
 const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
 
@@ -75,43 +74,44 @@ export const handler: Handler = async (event) => {
   );
 
   // Iterate through deaggregated records
-  for (const payload of filterIonPayload(userRecords, [QLDB_TABLE_NAME])) {
-    if (payload?.revision && payload?.tableInfo) {
-      const { data, metadata } = payload.revision;
-      if (data && metadata && payload.tableInfo.tableName === QLDB_TABLE_NAME) {
-        const txDate = metadata.txTime?.getDate();
+  for (const record of userRecords) {
+    const payload = getRevisionDetailsPayload(record, [QLDB_TABLE_NAME]);
+    if (!payload?.revision || !payload?.tableInfo) continue;
 
-        const ddbItem: typeof data & {
-          txId: string | undefined | null;
-          txTime: string | undefined | null;
-          timestamp?: number | undefined;
-          expire_timestamp?: number;
-        } = {
-          ...data,
-          txId: metadata.txId,
-          txTime: txDate?.toISOString(),
-        };
+    const { data, metadata } = payload.revision;
+    if (data && metadata && payload.tableInfo.tableName === QLDB_TABLE_NAME) {
+      const txDate = metadata.txTime?.getDate();
 
-        if (EXPIRE_AFTER_DAYS) {
-          const timestamp = txDate?.getTime();
-          if (timestamp) {
-            ddbItem.timestamp = timestamp;
-            ddbItem.expire_timestamp =
-              timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
-          }
+      const ddbItem: typeof data & {
+        txId: string | undefined | null;
+        txTime: string | undefined | null;
+        timestamp?: number | undefined;
+        expire_timestamp?: number;
+      } = {
+        ...data,
+        txId: metadata.txId,
+        txTime: txDate?.toISOString(),
+      };
+
+      if (EXPIRE_AFTER_DAYS) {
+        const timestamp = txDate?.getTime();
+        if (timestamp) {
+          ddbItem.timestamp = timestamp;
+          ddbItem.expire_timestamp =
+            timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
         }
+      }
 
-        const putCommand = new PutItemCommand({
-          TableName: TABLE_NAME,
-          Item: marshall(ddbItem),
-        });
+      const putCommand = new PutItemCommand({
+        TableName: TABLE_NAME,
+        Item: marshall(ddbItem),
+      });
 
-        try {
-          await client.send(putCommand);
-        } catch (error) {
-          console.error(`Error processing record ${dumpPrettyText(ddbItem)}`);
-          throw error;
-        }
+      try {
+        await client.send(putCommand);
+      } catch (error) {
+        console.error(`Error processing record ${dumpPrettyText(ddbItem)}`);
+        throw error;
       }
     }
   }
