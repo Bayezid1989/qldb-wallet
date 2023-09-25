@@ -14,7 +14,7 @@ Including:
 - DynamoDB Table
 - IAM roles
 
-Please see the following [architecture diagram](readme-architecture.png)
+![architecture diagram](/readme-architecture.png)
 
 ## API Parameters
 
