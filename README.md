@@ -1,20 +1,6 @@
 # QLDB DynamoDB Serverless Wallet
 
-This is NodeJs(Typescript) Digital Wallet Project based on [AWS serverless-wallet blog](https://aws.amazon.com/blogs/architecture/building-a-serverless-wallet-service-for-in-game-currency/)
-
-## Architecture
-
-This project will deploy digital wallet service using serverless technologies on AWS.
-Including:
-
-- REST API on API Gateway
-- Lambda Functions
-- QLDB Ledger
-- QLDB Ledger stream and Kinesis Data Stream
-- DynamoDB Table
-- IAM roles
-
-![architecture diagram](/readme-architecture.png)
+This is NodeJs(Typescript) Digital Wallet API Project based on [AWS serverless-wallet blog](https://aws.amazon.com/blogs/architecture/building-a-serverless-wallet-service-for-in-game-currency/)
 
 ## API Parameters
 
@@ -29,6 +15,20 @@ The **body** of the request must be a JSON object with the following attributes:
 - /transferFunds(POST): `{ "fromAccountId": <string>, "toAccountId": <string>, "amount": <number>, txRequestId: <string> }`
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
+
+## Architecture
+
+This project will deploy digital wallet service using serverless technologies on AWS.
+Including:
+
+- REST API on API Gateway
+- Lambda Functions
+- QLDB Ledger
+- QLDB Ledger stream and Kinesis Data Stream
+- DynamoDB Table
+- IAM roles
+
+![architecture diagram](/readme-architecture.png)
 
 ## Useful commands
 
