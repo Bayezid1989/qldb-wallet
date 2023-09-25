@@ -62,7 +62,7 @@ const transferFunds = async (
   }
   if (hasSameRequestId) {
     return returnError(
-      `Transaction Request ${txRequestId} is already processed`,
+      `Transaction Request ${txRequestId} already processed`,
       400,
     );
   }
