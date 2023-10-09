@@ -6,7 +6,7 @@ import { initQldbDriver, returnError, returnResponse } from "../util/util";
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
 // Initialize the driver
-const qldbDriver = initQldbDriver();
+const qldbDriver = initQldbDriver(process.env.LEDGER_NAME || "");
 
 const createAccount = async (
   accountId: string,

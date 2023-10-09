@@ -13,7 +13,7 @@ import { TX_TYPE } from "../util/constant";
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
 // Initialize the driver
-const qldbDriver = initQldbDriver();
+const qldbDriver = initQldbDriver(process.env.LEDGER_NAME || "");
 
 const transferFunds = async (
   fromAccountId: string,

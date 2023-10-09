@@ -21,8 +21,7 @@ const REGION = process.env.CDK_DEFAULT_REGION;
 const QLDB_TABLE_NAME = config.qldbTableName;
 const LOG_RETENTION = config.logRetention;
 const SHARD_COUNT = config.shardCount;
-const EXPIRE_AFTER_DAYS =
-  "expireAfterDays" in config ? config.expireAfterDays : undefined;
+const EXPIRE_AFTER_DAYS = config.expireAfterDays;
 
 export class QldbWalletStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -75,15 +74,33 @@ export class QldbWalletStack extends Stack {
       roleArn: qldbStreamRole.roleArn,
     });
 
-    // DynamoDB Table definition
-    const ddbTable = new dynamodb.Table(this, "ddb-transactions-table", {
-      tableName: `wallet-transactions-${LEDGER_NAME}`,
+    // DynamoDB Transaction Table definition
+    const ddbTxTableName = `wallet-transactions-${LEDGER_NAME}`;
+    const ddbTxTable = new dynamodb.Table(this, "ddb-transactions-table", {
+      tableName: ddbTxTableName,
       partitionKey: { name: "accountId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       sortKey: { name: "txTime", type: dynamodb.AttributeType.STRING },
       removalPolicy: RemovalPolicy.DESTROY,
-      timeToLiveAttribute: EXPIRE_AFTER_DAYS ? "expire_timestamp" : undefined,
     });
+
+    // DynamoDB Transaction Request Table definition: If necessary to store pending transaction
+    // const ddbTxReqTableName = `wallet-transaction-requests-${LEDGER_NAME}`;
+    // const ddbTxReqTable = new dynamodb.Table(
+    //   this,
+    //   "ddb-transaction-requests-table",
+    //   {
+    //     tableName: ddbTxReqTableName,
+    //     partitionKey: {
+    //       name: "accountId",
+    //       type: dynamodb.AttributeType.STRING,
+    //     },
+    //     billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+    //     sortKey: { name: "timestamp", type: dynamodb.AttributeType.NUMBER },
+    //     removalPolicy: RemovalPolicy.DESTROY,
+    //     timeToLiveAttribute: "expire_timestamp",
+    //   },
+    // );
 
     // Create IAM Roles and policies for Lambda functions
     const qldbAccessPolicy = new iam.PolicyStatement({
@@ -95,7 +112,8 @@ export class QldbWalletStack extends Stack {
     const ddbTablePolicy = new iam.PolicyStatement({
       actions: ["dynamodb:Query", "dynamodb:PutItem"],
       effect: iam.Effect.ALLOW,
-      resources: [ddbTable.tableArn],
+      resources: [ddbTxTable.tableArn],
+      // resources: [ddbTxTable.tableArn, ddbTxReqTable.tableArn],
     });
 
     // Create Lambda role and policies
@@ -185,6 +203,16 @@ export class QldbWalletStack extends Stack {
       },
     );
 
+    // const lambdaRequestWithdrawFunds = new lambdaNodeJs.NodejsFunction(
+    //   this,
+    //   "request-withdraw-funds-lambda",
+    //   {
+    //     entry: "lambda/api/requestWithdrawFunds.ts",
+    //     role: lambdaDdbRole,
+    //     ...nodeJsFunctionProps,
+    //   },
+    // );
+
     const lambdaStreamTransactions = new lambdaNodeJs.NodejsFunction(
       this,
       "stream-transactions-lambda",
@@ -212,7 +240,7 @@ export class QldbWalletStack extends Stack {
       lambdaWithdrawFunds,
       lambdaAddFunds,
       lambdaTransferFunds,
-      lambdaGetTransactions,
+      // lambdaRequestWithdrawFunds,
       lambdaStreamTransactions,
     ];
     for (const lmbd of lambdas) {
@@ -220,16 +248,20 @@ export class QldbWalletStack extends Stack {
       lmbd.addEnvironment("QLDB_TABLE_NAME", QLDB_TABLE_NAME);
     }
 
-    const ddbTableName = `wallet-transactions-${LEDGER_NAME}`;
-    lambdaGetTransactions.addEnvironment("DDB_TABLE_NAME", ddbTableName);
-    lambdaStreamTransactions.addEnvironment("DDB_TABLE_NAME", ddbTableName);
+    lambdaGetTransactions.addEnvironment("DDB_TX_TABLE_NAME", ddbTxTableName);
+    lambdaStreamTransactions.addEnvironment(
+      "DDB_TX_TABLE_NAME",
+      ddbTxTableName,
+    );
 
-    if (EXPIRE_AFTER_DAYS) {
-      lambdaStreamTransactions.addEnvironment(
-        "EXPIRE_AFTER_DAYS",
-        String(EXPIRE_AFTER_DAYS),
-      );
-    }
+    // lambdaRequestWithdrawFunds.addEnvironment(
+    //   "DDB_TX_REQUEST_TABLE_NAME",
+    //   ddbTxReqTableName,
+    // );
+    // lambdaRequestWithdrawFunds.addEnvironment(
+    //   "EXPIRE_AFTER_DAYS",
+    //   String(EXPIRE_AFTER_DAYS),
+    // );
 
     // Create APIs in API Gateway
 
@@ -288,6 +320,14 @@ export class QldbWalletStack extends Stack {
       "GET",
       new apigw.LambdaIntegration(lambdaGetTransactions),
     );
+
+    // const requestWithdrawFundsRsc = api.root.addResource(
+    //   "requestWithdrawFunds",
+    // );
+    // requestWithdrawFundsRsc.addMethod(
+    //   "POST",
+    //   new apigw.LambdaIntegration(lambdaRequestWithdrawFunds),
+    // );
 
     const output1 = `Execute the following queries in QLDB query editor for ledger ${LEDGER_NAME} before using:`;
     const output2 = `CREATE TABLE "${QLDB_TABLE_NAME}"`;

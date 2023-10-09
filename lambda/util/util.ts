@@ -10,6 +10,8 @@ import { config } from "../../config";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
+export const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
+
 export const returnError = (
   message: string,
   httpStatusCode: number = 500,
@@ -30,14 +32,13 @@ export const returnResponse = (body: Record<string, any>) => ({
   isBase64Encoded: false,
 });
 
-export const initQldbDriver = () => {
-  const LEDGER_NAME = config.ledgerName;
+export const initQldbDriver = (ledgerName: string) => {
   const retryLimit = 3;
 
   const retryConfig = new RetryConfig(retryLimit);
 
   // Initialize the driver
-  return new QldbDriver(LEDGER_NAME, retryConfig);
+  return new QldbDriver(ledgerName, retryConfig);
 };
 
 const isIonNull = (ion: dom.Value | null | undefined, key: string) =>

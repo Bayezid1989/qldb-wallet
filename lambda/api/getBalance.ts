@@ -10,7 +10,7 @@ import {
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
 // Initialize the driver
-const qldbDriver = initQldbDriver();
+const qldbDriver = initQldbDriver(process.env.LEDGER_NAME || "");
 
 const queryBalance = async (
   accountId: string,

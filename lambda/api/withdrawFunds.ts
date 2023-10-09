@@ -11,7 +11,7 @@ import { TX_TYPE } from "../util/constant";
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
 // Initialize the driver
-const qldbDriver = initQldbDriver();
+const qldbDriver = initQldbDriver(process.env.LEDGER_NAME || "");
 
 const withdrawFunds = async (
   accountId: string,
@@ -63,7 +63,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (body.accountId && body.txRequestId && body.amount > 0) {
     try {
-      const obj = await qldbDriver.executeLambda(
+      const res = await qldbDriver.executeLambda(
         (executor: TransactionExecutor) =>
           withdrawFunds(
             body.accountId,
@@ -73,7 +73,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
             executor,
           ),
       );
-      return obj;
+      return res;
     } catch (error: any) {
       return returnError(error.message, 500);
     }

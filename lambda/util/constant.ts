@@ -3,3 +3,9 @@ export const TX_TYPE = {
   WITHDRAW: "WITHDRAW",
   TRANSFER: "TRANSFER",
 };
+
+export const TX_STATUS = {
+  REQUESTED: "REQUESTED",
+  COMMITED: "COMMITED",
+  CANCELED: "CANCELED",
+};

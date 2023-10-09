@@ -4,7 +4,7 @@ import type { APIGatewayProxyHandler } from "aws-lambda";
 import { returnError, returnResponse } from "../util/util";
 
 const client = new DynamoDBClient();
-const TABLE_NAME = process.env.DDB_TABLE_NAME || "";
+const TX_TABLE_NAME = process.env.DDB_TX_TABLE_NAME || "";
 
 // Ref: DynamoDB Query: https://docs.aws.amazon.com/ja_jp/amazondynamodb/latest/developerguide/GettingStarted.Query.html
 const queryTransactions = async (
@@ -35,7 +35,7 @@ const queryTransactions = async (
   }
 
   const command = new QueryCommand({
-    TableName: TABLE_NAME,
+    TableName: TX_TABLE_NAME,
     KeyConditionExpression: condition,
     ExpressionAttributeValues: marshall(attributeValues),
   });

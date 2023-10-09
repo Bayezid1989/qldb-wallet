@@ -11,8 +11,7 @@ import { marshall } from "@aws-sdk/util-dynamodb";
 
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 const client = new DynamoDBClient();
-const TABLE_NAME = process.env.DDB_TABLE_NAME || "";
-const EXPIRE_AFTER_DAYS = process.env.EXPIRE_AFTER_DAYS;
+const TABLE_NAME = process.env.DDB_TX_TABLE_NAME || "";
 const REVISION_DETAILS_RECORD_TYPE = "REVISION_DETAILS";
 const computeChecksums = true;
 
@@ -59,8 +58,6 @@ const getRevisionDetailsPayload = (
   return null;
 };
 
-const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
-
 export const handler: Handler = async (event) => {
   const rawKinesisRecords: KinesisStreamRecord[] = event.Records;
 
@@ -93,15 +90,6 @@ export const handler: Handler = async (event) => {
         txTime: txDate?.toISOString(),
       };
 
-      if (EXPIRE_AFTER_DAYS) {
-        const timestamp = txDate?.getTime();
-        if (timestamp) {
-          ddbItem.timestamp = timestamp;
-          ddbItem.expire_timestamp =
-            timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS));
-        }
-      }
-
       const putCommand = new PutItemCommand({
         TableName: TABLE_NAME,
         Item: marshall(ddbItem),
@@ -110,7 +98,7 @@ export const handler: Handler = async (event) => {
       try {
         await client.send(putCommand);
       } catch (error) {
-        console.error(`Error processing record ${dumpPrettyText(ddbItem)}`);
+        console.error(`Error processing record ${JSON.stringify(ddbItem)}`);
         throw error;
       }
     }
