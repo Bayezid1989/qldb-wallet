@@ -19,8 +19,8 @@ const transferFunds = async (
   fromAccountId: string,
   toAccountId: string,
   amount: number,
-  txType = TX_TYPE.TRANSFER,
-  txRequestId: string,
+  type = TX_TYPE.TRANSFER,
+  requestId: string,
   executor: TransactionExecutor,
 ) => {
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
@@ -49,7 +49,7 @@ const transferFunds = async (
     } else if (ionString(record, "accountId") === toAccountId) {
       toAccount = record;
     }
-    if (ionString(record, "txRequestId") === txRequestId) {
+    if (ionString(record, "txRequestId") === requestId) {
       hasSameRequestId = true;
     }
   });
@@ -62,7 +62,7 @@ const transferFunds = async (
   }
   if (hasSameRequestId) {
     return returnError(
-      `Transaction Request ${txRequestId} already processed`,
+      `Transaction Request ${requestId} already processed`,
       400,
     );
   }
@@ -81,11 +81,11 @@ const transferFunds = async (
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance - ?, txAmount = ?, txFrom = ?, txTo = ?, txType = ?, txRequestId = ? WHERE accountId = ?`,
     amount,
-    amount,
+    -amount,
     fromAccountId,
     toAccountId,
-    txType,
-    txRequestId,
+    type,
+    requestId,
     fromAccountId,
   );
 
@@ -96,8 +96,8 @@ const transferFunds = async (
     amount,
     fromAccountId,
     toAccountId,
-    txType,
-    txRequestId,
+    type,
+    requestId,
     toAccountId,
   );
 
@@ -105,8 +105,8 @@ const transferFunds = async (
     fromAccountId,
     toAccountId,
     amount,
-    txType,
-    txRequestId,
+    type,
+    requestId,
   });
 };
 
@@ -123,7 +123,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (
     body.fromAccountId &&
     body.toAccountId &&
-    body.txRequestId &&
+    body.requestId &&
     body.amount > 0
   ) {
     try {
@@ -132,8 +132,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
           body.fromAccountId,
           body.toAccountId,
           body.amount,
-          body.txType,
-          body.txRequestId,
+          body.type,
+          body.requestId,
           executor,
         ),
       );

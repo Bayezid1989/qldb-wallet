@@ -1,7 +1,7 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import {
-  checkAccountBalance,
+  checkAvailableBalance,
   daysToSeconds,
   initQldbDriver,
   returnError,
@@ -29,7 +29,7 @@ const createWithdrawlRequest = async (
   requestId: string,
   executor: TransactionExecutor,
 ) => {
-  const balance = await checkAccountBalance(accountId, requestId, executor);
+  const balance = await checkAvailableBalance(accountId, requestId, executor);
   if (typeof balance !== "number") return balance;
   if (balance - amount < 0) {
     return returnError(
@@ -56,7 +56,7 @@ const createWithdrawlRequest = async (
 
   console.info(`Creating transaction request for account ${accountId}`);
 
-  const timestamp = Date.now();
+  const date = new Date().toISOString();
   const ddbItem = {
     accountId,
     amount,
@@ -66,8 +66,9 @@ const createWithdrawlRequest = async (
     requestId,
     status: TX_STATUS.REQUESTED,
     txId: null,
-    timestamp,
-    expire_timestamp: timestamp + daysToSeconds(Number(EXPIRE_AFTER_DAYS)),
+    createdAt: date,
+    updatedAt: date,
+    expireTimestamp: null, // Date.now() + daysToSeconds(Number(EXPIRE_AFTER_DAYS)),
   };
   const putCommand = new PutItemCommand({
     TableName: TABLE_NAME,

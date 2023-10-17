@@ -34,6 +34,7 @@ const createAccount = async (
       txTo: null,
       txType: null,
       txRequestId: null,
+      pendingTxs: [],
     });
   }
 

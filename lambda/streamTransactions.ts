@@ -82,8 +82,6 @@ export const handler: Handler = async (event) => {
       const ddbItem: typeof data & {
         txId: string | undefined | null;
         txTime: string | undefined | null;
-        timestamp?: number | undefined;
-        expire_timestamp?: number;
       } = {
         ...data,
         txId: metadata.txId,

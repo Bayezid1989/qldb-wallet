@@ -163,21 +163,11 @@ export class QldbWalletStack extends Stack {
       },
     );
 
-    const lambdaWithdrawFunds = new lambdaNodeJs.NodejsFunction(
+    const lambdaUpdateBalance = new lambdaNodeJs.NodejsFunction(
       this,
-      "withdraw-funds-lambda",
+      "update-balance-lambda",
       {
-        entry: "lambda/api/withdrawFunds.ts",
-        role: lambdaQldbRole,
-        ...nodeJsFunctionProps,
-      },
-    );
-
-    const lambdaAddFunds = new lambdaNodeJs.NodejsFunction(
-      this,
-      "add-funds-lambda",
-      {
-        entry: "lambda/api/addFunds.ts",
+        entry: "lambda/api/updateBalance.ts",
         role: lambdaQldbRole,
         ...nodeJsFunctionProps,
       },
@@ -203,16 +193,6 @@ export class QldbWalletStack extends Stack {
       },
     );
 
-    // const lambdaRequestWithdrawFunds = new lambdaNodeJs.NodejsFunction(
-    //   this,
-    //   "request-withdraw-funds-lambda",
-    //   {
-    //     entry: "lambda/api/requestWithdrawFunds.ts",
-    //     role: lambdaDdbRole,
-    //     ...nodeJsFunctionProps,
-    //   },
-    // );
-
     const lambdaStreamTransactions = new lambdaNodeJs.NodejsFunction(
       this,
       "stream-transactions-lambda",
@@ -237,8 +217,8 @@ export class QldbWalletStack extends Stack {
     const lambdas = [
       lambdaCreateAccount,
       lambdaGetBalance,
-      lambdaWithdrawFunds,
-      lambdaAddFunds,
+      lambdaUpdateBalance,
+      // lambdaAddFunds,
       lambdaTransferFunds,
       // lambdaRequestWithdrawFunds,
       lambdaStreamTransactions,
@@ -298,14 +278,11 @@ export class QldbWalletStack extends Stack {
       new apigw.LambdaIntegration(lambdaGetBalance),
     );
 
-    const withdrawFundsRsc = api.root.addResource("withdrawFunds");
-    withdrawFundsRsc.addMethod(
+    const updateBalanceRsc = api.root.addResource("updateBalance");
+    updateBalanceRsc.addMethod(
       "POST",
-      new apigw.LambdaIntegration(lambdaWithdrawFunds),
+      new apigw.LambdaIntegration(lambdaUpdateBalance),
     );
-
-    const addFundsRsc = api.root.addResource("addFunds");
-    addFundsRsc.addMethod("POST", new apigw.LambdaIntegration(lambdaAddFunds));
 
     const transferFundsRsc = api.root.addResource("transferFunds");
     transferFundsRsc.addMethod(

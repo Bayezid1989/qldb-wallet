@@ -6,8 +6,6 @@ import {
 import { APIGatewayProxyResult } from "aws-lambda";
 import type { dom } from "ion-js";
 
-import { config } from "../../config";
-
 const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
 
 export const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
@@ -53,14 +51,41 @@ export const ionNumber = (ion: dom.Value | null | undefined, key: string) =>
 export const ionTimestamp = (ion: dom.Value | null | undefined, key: string) =>
   isIonNull(ion, key) ? null : ion?.get(key)?.timestampValue();
 
-export const checkAccountBalance = async (
+export const ionArray = (ion: dom.Value | null | undefined, key: string) =>
+  isIonNull(ion, key) ? null : ion?.get(key)?.elements();
+
+const parsePendingTxs = (data: dom.Value | null | undefined) =>
+  ionArray(data, "pendingTxs")?.map((struct: dom.Value | null | undefined) => ({
+    amount: ionNumber(struct, "amount"),
+    from: ionString(struct, "from"),
+    to: ionString(struct, "to"),
+    type: ionString(struct, "type"),
+    requestId: ionString(struct, "requestId"),
+    status: ionString(struct, "status"),
+  })) || [];
+
+export const getBalances = (ionRecord: dom.Value) => {
+  const pendingMinusAmount =
+    parsePendingTxs(ionRecord)?.reduce((sum, cur) => {
+      if (typeof cur?.amount === "number" && cur.amount < 0) {
+        return sum + cur?.amount;
+      }
+      return sum;
+    }, 0) || 0;
+
+  const balance = ionNumber(ionRecord, "balance") || 0;
+
+  return { balance, availableBalance: balance + pendingMinusAmount };
+};
+
+export const checkAvailableBalance = async (
   accountId: string,
-  txRequestId: string,
+  requestId: string,
   executor: TransactionExecutor,
 ): Promise<number | APIGatewayProxyResult> => {
   console.info(`Retrieving account for id ${accountId}`);
   const res = await executor.execute(
-    `SELECT accountId, balance, txRequestId FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
+    `SELECT accountId, balance, txRequestId, pendingTxs FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
     accountId,
   );
   const records: dom.Value[] = res.getResultList();
@@ -72,13 +97,13 @@ export const checkAccountBalance = async (
     return returnError(`More than one account with user id ${accountId}`, 500);
   }
   const record = records[0];
-  if (ionString(record, "txRequestId") === txRequestId) {
+  if (ionString(record, "txRequestId") === requestId) {
     return returnError(
-      `Transaction Request ${txRequestId} is already processed`,
+      `Transaction Request ${requestId} is already processed`,
       400,
     );
   }
-  return ionNumber(record, "balance") || 0;
+  return getBalances(record).availableBalance;
 };
 
 export const parseIonRecord = (ionRecord: dom.Value | null) => {
@@ -104,6 +129,7 @@ export const parseIonRecord = (ionRecord: dom.Value | null) => {
         txTo: ionString(data, "txTo"),
         txType: ionString(data, "txType"),
         txRequestId: ionString(data, "txRequestId"),
+        pendingTxs: parsePendingTxs(data),
       },
       metadata: {
         txTime: ionTimestamp(metadata, "txTime"),
