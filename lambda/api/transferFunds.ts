@@ -27,7 +27,9 @@ const transferFunds = async (
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
   console.info(`Retrieving accounts ${idsString}`);
   const res = await executor.execute(
-    `SELECT accountId, balance, txRequestId FROM "${QLDB_TABLE_NAME}" WHERE accountId IN (?, ?)`,
+    `SELECT accountId, balance, txRequestId
+    FROM "${QLDB_TABLE_NAME}"
+    WHERE accountId IN (?, ?)`,
     fromAccountId,
     toAccountId,
   );

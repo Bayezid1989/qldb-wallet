@@ -38,8 +38,10 @@ const appendTransaction = async (
   const status = TX_STATUS.REQUESTED;
 
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET txAmount = NULL, txFrom = NULL, txTo = NULL, txType = NULL, txRequestId = NULL, pendingTxs = append(pendingTxs, ?) WHERE accountId = ?`,
-    { amount, type, requestId, status },
+    `UPDATE "${QLDB_TABLE_NAME}"
+    SET txAmount = NULL, txFrom = NULL, txTo = NULL, txType = NULL, txRequestId = NULL, pendingTxs = ?
+    WHERE accountId = ?`,
+    obj.pendingTxs.concat({ amount, type, requestId, status }),
     accountId,
   );
 

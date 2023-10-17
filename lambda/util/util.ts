@@ -71,7 +71,9 @@ export const checkGetBalances = async (
 ) => {
   console.info(`Retrieving account for id ${accountId}`);
   const res = await executor.execute(
-    `SELECT accountId, balance, txRequestId, pendingTxs FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
+    `SELECT accountId, balance, txRequestId, pendingTxs
+    FROM "${QLDB_TABLE_NAME}"
+    WHERE accountId = ?`,
     accountId,
   );
   const records: dom.Value[] = res.getResultList();

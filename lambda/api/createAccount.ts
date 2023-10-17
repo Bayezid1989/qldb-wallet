@@ -15,7 +15,8 @@ const createAccount = async (
 ) => {
   console.info(`Verifying account with id ${accountId} does not exist`);
   const res = await executor.execute(
-    `SELECT accountId FROM "${QLDB_TABLE_NAME}" WHERE accountId = ? `,
+    `SELECT accountId FROM "${QLDB_TABLE_NAME}"
+    WHERE accountId = ?`,
     accountId,
   );
 

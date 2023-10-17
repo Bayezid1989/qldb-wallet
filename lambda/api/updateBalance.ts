@@ -30,7 +30,9 @@ const updateBalance = async (
   const newBalance = obj.balance + amount;
 
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = ?, txAmount = ?, txFrom = NULL, txTo = NULL, txType = ?, txRequestId = ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}"
+    SET balance = ?, txAmount = ?, txFrom = NULL, txTo = NULL, txType = ?, txRequestId = ?
+    WHERE accountId = ?`,
     newBalance,
     amount,
     type,
