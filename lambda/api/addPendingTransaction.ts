@@ -6,7 +6,7 @@ import {
   returnError,
   returnResponse,
 } from "../util/util";
-import { TX_TYPE } from "../util/constant";
+import { TX_STATUS, TX_TYPE } from "../util/constant";
 import { config } from "../../config";
 
 const { QLDB_TABLE_NAME } = config;
@@ -14,7 +14,7 @@ const { QLDB_TABLE_NAME } = config;
 // Initialize the driver
 const qldbDriver = initQldbDriver();
 
-const updateBalance = async (
+const appendTransaction = async (
   accountId: string,
   amount: number,
   type: string,
@@ -24,26 +24,31 @@ const updateBalance = async (
   const obj = await checkGetBalances(accountId, executor, requestId, amount);
   if ("statusCode" in obj) return obj; // Error object
 
+  const tx = obj.pendingTxs.find((tx) => tx.requestId === requestId);
+  if (tx) {
+    return returnError(
+      `Transaction Request ${requestId} is already ${tx.status}`,
+      400,
+    );
+  }
+
   console.info(
-    `Updating balance for ${type} with ${amount} for account ${accountId}`,
+    `Adding pending ${type} transaction with ${amount} for account ${accountId}`,
   );
-  const newBalance = obj.balance + amount;
+  const status = TX_STATUS.REQUESTED;
 
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = ?, txAmount = ?, txFrom = NULL, txTo = NULL, txType = ?, txRequestId = ? WHERE accountId = ?`,
-    newBalance,
-    amount,
-    type,
-    requestId,
+    `UPDATE "${QLDB_TABLE_NAME}" SET txAmount = NULL, txFrom = NULL, txTo = NULL, txType = NULL, txRequestId = NULL, pendingTxs = append(pendingTxs, ?) WHERE accountId = ?`,
+    { amount, type, requestId, status },
     accountId,
   );
 
   return returnResponse({
     accountId,
-    oldBalance: obj.balance,
-    newBalance,
+    amount,
     type,
     requestId,
+    status,
   });
 };
 
@@ -63,12 +68,15 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     body.type &&
     typeof body.amount === "number"
   ) {
-    if (body.type !== TX_TYPE.WITHDRAW && body.type !== TX_TYPE.DEPOSIT) {
+    if (
+      body.type !== TX_TYPE.WITHDRAW_TO_BANK &&
+      body.type !== TX_TYPE.DEPOSIT_FROM_WALLET
+    ) {
       return returnError(`Wrong transaction type ${body.type}`, 400);
     }
     if (
-      (body.amount > 0 && body.type === TX_TYPE.WITHDRAW) ||
-      (body.amount < 0 && body.type === TX_TYPE.DEPOSIT)
+      (body.amount > 0 && body.type === TX_TYPE.WITHDRAW_TO_BANK) ||
+      (body.amount < 0 && body.type === TX_TYPE.DEPOSIT_FROM_WALLET)
     ) {
       return returnError(
         `Transaction type ${body.type} mismatches amount ${body.amount}`,
@@ -78,7 +86,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     try {
       const res = await qldbDriver.executeLambda(
         (executor: TransactionExecutor) =>
-          updateBalance(
+          appendTransaction(
             body.accountId,
             body.amount,
             body.type,

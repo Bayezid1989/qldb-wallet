@@ -9,11 +9,12 @@ import {
   returnResponse,
 } from "../util/util";
 import { TX_TYPE } from "../util/constant";
+import { config } from "../../config";
 
-const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
+const { QLDB_TABLE_NAME } = config;
 
 // Initialize the driver
-const qldbDriver = initQldbDriver(process.env.LEDGER_NAME || "");
+const qldbDriver = initQldbDriver();
 
 const transferFunds = async (
   fromAccountId: string,
@@ -75,7 +76,7 @@ const transferFunds = async (
     );
   }
 
-  console.info(`Updating balance with ${amount} for accounts${idsString}`);
+  console.info(`Transfering with ${amount} for accounts${idsString}`);
 
   // Deduct the amount from account
   await executor.execute(

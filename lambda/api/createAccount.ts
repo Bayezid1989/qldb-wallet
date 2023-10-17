@@ -2,11 +2,12 @@ import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import type { dom } from "ion-js";
 import { initQldbDriver, returnError, returnResponse } from "../util/util";
+import { config } from "../../config";
 
-const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
+const { QLDB_TABLE_NAME } = config;
 
 // Initialize the driver
-const qldbDriver = initQldbDriver(process.env.LEDGER_NAME || "");
+const qldbDriver = initQldbDriver();
 
 const createAccount = async (
   accountId: string,

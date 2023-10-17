@@ -5,8 +5,9 @@ import {
 } from "amazon-qldb-driver-nodejs";
 import { APIGatewayProxyResult } from "aws-lambda";
 import type { dom } from "ion-js";
+import { config } from "../../config";
 
-const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
+const { QLDB_TABLE_NAME, LEDGER_NAME } = config;
 
 export const daysToSeconds = (days: number) => Math.floor(days) * 24 * 60 * 60;
 
@@ -30,13 +31,13 @@ export const returnResponse = (body: Record<string, any>) => ({
   isBase64Encoded: false,
 });
 
-export const initQldbDriver = (ledgerName: string) => {
+export const initQldbDriver = () => {
   const retryLimit = 3;
 
   const retryConfig = new RetryConfig(retryLimit);
 
   // Initialize the driver
-  return new QldbDriver(ledgerName, retryConfig);
+  return new QldbDriver(LEDGER_NAME, retryConfig);
 };
 
 const isIonNull = (ion: dom.Value | null | undefined, key: string) =>
@@ -57,32 +58,17 @@ export const ionArray = (ion: dom.Value | null | undefined, key: string) =>
 const parsePendingTxs = (data: dom.Value | null | undefined) =>
   ionArray(data, "pendingTxs")?.map((struct: dom.Value | null | undefined) => ({
     amount: ionNumber(struct, "amount"),
-    from: ionString(struct, "from"),
-    to: ionString(struct, "to"),
     type: ionString(struct, "type"),
     requestId: ionString(struct, "requestId"),
     status: ionString(struct, "status"),
   })) || [];
 
-export const getBalances = (ionRecord: dom.Value) => {
-  const pendingMinusAmount =
-    parsePendingTxs(ionRecord)?.reduce((sum, cur) => {
-      if (typeof cur?.amount === "number" && cur.amount < 0) {
-        return sum + cur?.amount;
-      }
-      return sum;
-    }, 0) || 0;
-
-  const balance = ionNumber(ionRecord, "balance") || 0;
-
-  return { balance, availableBalance: balance + pendingMinusAmount };
-};
-
-export const checkAvailableBalance = async (
+export const checkGetBalances = async (
   accountId: string,
-  requestId: string,
   executor: TransactionExecutor,
-): Promise<number | APIGatewayProxyResult> => {
+  requestId?: string,
+  amount?: number,
+) => {
   console.info(`Retrieving account for id ${accountId}`);
   const res = await executor.execute(
     `SELECT accountId, balance, txRequestId, pendingTxs FROM "${QLDB_TABLE_NAME}" WHERE accountId = ?`,
@@ -97,13 +83,37 @@ export const checkAvailableBalance = async (
     return returnError(`More than one account with user id ${accountId}`, 500);
   }
   const record = records[0];
-  if (ionString(record, "txRequestId") === requestId) {
+  if (requestId && ionString(record, "txRequestId") === requestId) {
     return returnError(
       `Transaction Request ${requestId} is already processed`,
       400,
     );
   }
-  return getBalances(record).availableBalance;
+
+  const pendingTxs = parsePendingTxs(record);
+  const pendingMinusAmount =
+    pendingTxs.reduce((sum, cur) => {
+      if (typeof cur?.amount === "number" && cur.amount < 0) {
+        return sum + cur?.amount;
+      }
+      return sum;
+    }, 0) || 0;
+
+  const balance = ionNumber(record, "balance") || 0;
+  const availableBalance = balance + pendingMinusAmount;
+
+  if (amount !== undefined && amount < 0 && availableBalance + amount < 0) {
+    return returnError(
+      `Funds too low. Cannot deduct ${amount} from account ${accountId}`,
+      400,
+    );
+  }
+
+  return {
+    balance,
+    availableBalance: balance + pendingMinusAmount,
+    pendingTxs,
+  };
 };
 
 export const parseIonRecord = (ionRecord: dom.Value | null) => {

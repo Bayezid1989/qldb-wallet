@@ -2,9 +2,10 @@ import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import { returnError, returnResponse } from "../util/util";
+import { config } from "../../config";
 
 const client = new DynamoDBClient();
-const TX_TABLE_NAME = process.env.DDB_TX_TABLE_NAME || "";
+const { DDB_TABLE_NAME } = config;
 
 // Ref: DynamoDB Query: https://docs.aws.amazon.com/ja_jp/amazondynamodb/latest/developerguide/GettingStarted.Query.html
 const queryTransactions = async (
@@ -35,7 +36,7 @@ const queryTransactions = async (
   }
 
   const command = new QueryCommand({
-    TableName: TX_TABLE_NAME,
+    TableName: DDB_TABLE_NAME,
     KeyConditionExpression: condition,
     ExpressionAttributeValues: marshall(attributeValues),
   });

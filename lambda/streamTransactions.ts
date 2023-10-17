@@ -8,10 +8,11 @@ import {
 } from "aws-lambda";
 import { ionString, parseIonRecord } from "./util/util";
 import { marshall } from "@aws-sdk/util-dynamodb";
+import { config } from "../config";
 
-const QLDB_TABLE_NAME = process.env.QLDB_TABLE_NAME || "";
+const { QLDB_TABLE_NAME, DDB_TABLE_NAME } = config;
+
 const client = new DynamoDBClient();
-const TABLE_NAME = process.env.DDB_TX_TABLE_NAME || "";
 const REVISION_DETAILS_RECORD_TYPE = "REVISION_DETAILS";
 const computeChecksums = true;
 
@@ -86,10 +87,11 @@ export const handler: Handler = async (event) => {
         ...data,
         txId: metadata.txId,
         txTime: txDate?.toISOString(),
+        // expireTimestamp: Date.now() + daysToSeconds(Number(EXPIRE_AFTER_DAYS)),
       };
 
       const putCommand = new PutItemCommand({
-        TableName: TABLE_NAME,
+        TableName: DDB_TABLE_NAME,
         Item: marshall(ddbItem),
       });
 
