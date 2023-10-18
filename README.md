@@ -10,8 +10,11 @@ The **body** of the request must be a JSON object with the following attributes:
 - /getBalance(GET): `/{accountId}`
 - /getTransactions(GET): `/{accountId}?afterDate={ISO8601 string}&beforeDate={ISO8601 string}`
 - /createAccount(POST): `{ "accountId": <string> }`
-- /updateBalance(POST): `{ "accountId": <string>, "amount": <number>, type: <string> requestId: <string> }`
+- /deleteAccount(POST): `{ "accountId": <string> }`
+- /updateBalance(POST): `{ "accountId": <string>, "amount": <number>, requestId: <string> }`
 - /transferFunds(POST): `{ "fromAccountId": <string>, "toAccountId": <string>, "amount": <number>, requestId: <string> }`
+- /addTransaction(POST): `{ "accountId": <string>, "amount": <number>, requestId: <string> }`
+- /closeTransaction(POST): `{ "accountId": <string>, requestId: <string>, status: <string> }`
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 

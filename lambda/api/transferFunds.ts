@@ -5,11 +5,12 @@ import {
   initQldbDriver,
   ionNumber,
   ionString,
+  parseBaseTx,
   returnError,
   returnResponse,
 } from "../util/util";
-import { TX_TYPE } from "../util/constant";
 import { config } from "../../config";
+import { TX_STATUS } from "../util/constant";
 
 const { QLDB_TABLE_NAME } = config;
 
@@ -20,14 +21,13 @@ const transferFunds = async (
   fromAccountId: string,
   toAccountId: string,
   amount: number,
-  type = TX_TYPE.TRANSFER,
   requestId: string,
   executor: TransactionExecutor,
 ) => {
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
   console.info(`Retrieving accounts ${idsString}`);
   const res = await executor.execute(
-    `SELECT accountId, balance, txRequestId
+    `SELECT accountId, balance, lastTx
     FROM "${QLDB_TABLE_NAME}"
     WHERE accountId IN (?, ?)`,
     fromAccountId,
@@ -52,7 +52,7 @@ const transferFunds = async (
     } else if (ionString(record, "accountId") === toAccountId) {
       toAccount = record;
     }
-    if (ionString(record, "txRequestId") === requestId) {
+    if (parseBaseTx(record).requestId === requestId) {
       hasSameRequestId = true;
     }
   });
@@ -82,25 +82,33 @@ const transferFunds = async (
 
   // Deduct the amount from account
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance - ?, txAmount = ?, txFrom = ?, txTo = ?, txType = ?, txRequestId = ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}"
+    SET balance = balance - ?, lastTx = ?
+    WHERE accountId = ?`,
     amount,
-    -amount,
-    fromAccountId,
-    toAccountId,
-    type,
-    requestId,
+    {
+      amount: -amount,
+      from: fromAccountId,
+      to: toAccountId,
+      status: TX_STATUS.IMMEDIATE,
+      requestId,
+    },
     fromAccountId,
   );
 
   // Add the amount to account
   await executor.execute(
-    `UPDATE "${QLDB_TABLE_NAME}" SET balance = balance + ?, txAmount = ?, txFrom = ?, txTo = ?, txType = ?, txRequestId = ? WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}"
+    SET balance = balance + ?, lastTx = ?
+    WHERE accountId = ?`,
     amount,
-    amount,
-    fromAccountId,
-    toAccountId,
-    type,
-    requestId,
+    {
+      amount,
+      from: fromAccountId,
+      to: toAccountId,
+      status: TX_STATUS.IMMEDIATE,
+      requestId,
+    },
     toAccountId,
   );
 
@@ -108,7 +116,6 @@ const transferFunds = async (
     fromAccountId,
     toAccountId,
     amount,
-    type,
     requestId,
   });
 };
@@ -135,7 +142,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
           body.fromAccountId,
           body.toAccountId,
           body.amount,
-          body.type,
           body.requestId,
           executor,
         ),
@@ -146,7 +152,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   } else {
     return returnError(
-      "accountId, amount or txRequestId not specified, or amount is less than zero",
+      "accountId, amount or requestId not specified, or amount is less than zero",
       400,
     );
   }

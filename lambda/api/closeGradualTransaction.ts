@@ -14,24 +14,34 @@ const { QLDB_TABLE_NAME } = config;
 // Initialize the driver
 const qldbDriver = initQldbDriver();
 
-const updateBalance = async (
+const closeTransaction = async (
   accountId: string,
-  amount: number,
   requestId: string,
+  status: keyof typeof TX_STATUS,
   executor: TransactionExecutor,
 ) => {
-  const obj = await checkGetBalances(accountId, executor, requestId, amount);
+  const obj = await checkGetBalances(accountId, executor); // Omit checking requestId
   if ("statusCode" in obj) return obj; // Error object
 
-  console.info(`Updating balance with ${amount} for account ${accountId}`);
-  const newBalance = obj.balance + amount;
+  const txIndex = obj.pendingTxs.findIndex((tx) => tx.requestId === requestId);
+  if (txIndex === -1) {
+    return returnError(`Transaction ${requestId} not found`, 400);
+  }
+  const [tx] = obj.pendingTxs.splice(txIndex, 1);
+
+  console.info(
+    `Closing transaction to ${status} with ${tx.amount} for account ${accountId}`,
+  );
+  const newBalance =
+    status === "CANCELED" ? obj.balance : obj.balance + (tx.amount || 0);
 
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}"
-    SET balance = ?, lastTx = ?
-    WHERE accountId = ?`,
+      SET balance = ?, lastTx = ?, pendingTxs = ?
+      WHERE accountId = ?`,
     newBalance,
-    { amount, from: null, to: null, status: TX_STATUS.IMMEDIATE, requestId },
+    { ...tx, from: null, to: null },
+    obj.pendingTxs,
     accountId,
   );
 
@@ -39,8 +49,9 @@ const updateBalance = async (
     accountId,
     oldBalance: obj.balance,
     newBalance,
-    amount,
+    amount: tx.amount,
     requestId,
+    txStatus: status,
   });
 };
 
@@ -54,22 +65,28 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (
-    body.accountId &&
-    body.requestId &&
-    typeof body.amount === "number" &&
-    body.amount !== 0
-  ) {
+  if (body.accountId && body.requestId && body.status) {
+    if (
+      body.status !== TX_STATUS.CANCELED &&
+      body.status !== TX_STATUS.COMMITED
+    ) {
+      return returnError(`Wrong transaction status ${body.status}`, 400);
+    }
     try {
       const res = await qldbDriver.executeLambda(
         (executor: TransactionExecutor) =>
-          updateBalance(body.accountId, body.amount, body.requestId, executor),
+          closeTransaction(
+            body.accountId,
+            body.requestId,
+            body.status,
+            executor,
+          ),
       );
       return res;
     } catch (error: any) {
       return returnError(error.message, 500);
     }
   } else {
-    return returnError("accountId, amount or requestId not specified", 400);
+    return returnError("accountId or requestId not specified", 400);
   }
 };

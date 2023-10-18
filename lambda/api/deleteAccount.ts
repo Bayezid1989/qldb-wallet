@@ -9,11 +9,11 @@ const { QLDB_TABLE_NAME } = config;
 // Initialize the driver
 const qldbDriver = initQldbDriver();
 
-const createAccount = async (
+const deleteAccount = async (
   accountId: string,
   executor: TransactionExecutor,
 ) => {
-  console.info(`Verifying account with id ${accountId} does not exist`);
+  console.info(`Verifying account with id ${accountId} exists`);
   const res = await executor.execute(
     `SELECT accountId FROM "${QLDB_TABLE_NAME}"
     WHERE accountId = ?`,
@@ -22,16 +22,15 @@ const createAccount = async (
 
   const firstRecord: dom.Value = res.getResultList()[0];
 
-  if (firstRecord) {
-    return returnError(`Account ${accountId} already exists`, 400);
+  if (!firstRecord) {
+    return returnError(`Account ${accountId} doesn't exist`, 400);
   } else {
-    console.log(`Creating account with id ${accountId}`);
-    await executor.execute(`INSERT INTO "${QLDB_TABLE_NAME}" ?`, {
+    console.log(`Deleting account ${accountId}`);
+    await executor.execute(
+      `DELETE FROM "${QLDB_TABLE_NAME}"
+      WHERE accountId = ?`,
       accountId,
-      balance: 0,
-      lastTx: null,
-      pendingTxs: [],
-    });
+    );
   }
 
   return returnResponse({ accountId });
@@ -50,7 +49,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (body.accountId) {
     try {
       const res = await qldbDriver.executeLambda((executor) =>
-        createAccount(body.accountId, executor),
+        deleteAccount(body.accountId, executor),
       );
       return res;
     } catch (error: any) {

@@ -1,6 +1,10 @@
 import { UserRecord, deaggregateSync } from "aws-kinesis-agg";
 import { load, dumpPrettyText } from "ion-js";
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBClient,
+  PutItemCommand,
+  UpdateItemCommand,
+} from "@aws-sdk/client-dynamodb";
 import {
   Handler,
   KinesisStreamRecord,
@@ -9,6 +13,7 @@ import {
 import { ionString, parseIonRecord } from "./util/util";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import { config } from "../config";
+import { TX_STATUS } from "./util/constant";
 
 const { QLDB_TABLE_NAME, DDB_TABLE_NAME } = config;
 
@@ -77,29 +82,69 @@ export const handler: Handler = async (event) => {
     if (!payload?.revision || !payload?.tableInfo) continue;
 
     const { data, metadata } = payload.revision;
-    if (data && metadata && payload.tableInfo.tableName === QLDB_TABLE_NAME) {
+    if (
+      data?.accountId && // Omitting delete account record
+      metadata &&
+      payload.tableInfo.tableName === QLDB_TABLE_NAME
+    ) {
       const txDate = metadata.txTime?.getDate();
 
-      const ddbItem: typeof data & {
-        txId: string | undefined | null;
-        txTime: string | undefined | null;
-      } = {
-        ...data,
+      const { lastTx, pendingTxs, ...rest } = data;
+
+      const revisionObj = {
         txId: metadata.txId,
         txTime: txDate?.toISOString(),
-        // expireTimestamp: Date.now() + daysToSeconds(Number(EXPIRE_AFTER_DAYS)),
       };
 
-      const putCommand = new PutItemCommand({
-        TableName: DDB_TABLE_NAME,
-        Item: marshall(ddbItem),
-      });
-
-      try {
-        await client.send(putCommand);
-      } catch (error) {
-        console.error(`Error processing record ${JSON.stringify(ddbItem)}`);
-        throw error;
+      if (
+        lastTx.status === TX_STATUS.IMMEDIATE ||
+        lastTx.status === TX_STATUS.REQUESTED
+      ) {
+        const ddbItem = {
+          ...rest,
+          ...lastTx,
+          revisions: {
+            [lastTx.status || TX_STATUS.IMMEDIATE]: revisionObj,
+          },
+          createdAt: txDate?.toISOString(),
+          // expireTimestamp: Date.now() + daysToSeconds(Number(EXPIRE_AFTER_DAYS)),
+        };
+        const command = new PutItemCommand({
+          TableName: DDB_TABLE_NAME,
+          Item: marshall(ddbItem),
+        });
+        try {
+          await client.send(command);
+        } catch (error) {
+          console.error(`Error Putting record ${JSON.stringify(ddbItem)}`);
+          throw error;
+        }
+      } else {
+        const key = marshall({
+          accountId: data.accountId,
+          requestId: data.lastTx.requestId,
+        });
+        const values = marshall({
+          ":balance": data.balance,
+          ":status": data.lastTx.status,
+          ":revisionObj": revisionObj,
+        });
+        const command = new UpdateItemCommand({
+          TableName: DDB_TABLE_NAME,
+          Key: key,
+          UpdateExpression: `SET balance = :balance, status = :status, revisions.${lastTx.status} = :revisionObj, `,
+          ExpressionAttributeValues: values,
+        });
+        try {
+          await client.send(command);
+        } catch (error) {
+          console.error(
+            `Error Updating record ${JSON.stringify(key)}, ${JSON.stringify(
+              values,
+            )}`,
+          );
+          throw error;
+        }
       }
     }
   }

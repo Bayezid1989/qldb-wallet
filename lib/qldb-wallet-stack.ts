@@ -83,7 +83,7 @@ export class QldbWalletStack extends Stack {
       tableName: DDB_TABLE_NAME,
       partitionKey: { name: "accountId", type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      sortKey: { name: "txTime", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
       removalPolicy: RemovalPolicy.DESTROY,
       // timeToLiveAttribute: "expire_timestamp",
     });
@@ -139,6 +139,16 @@ export class QldbWalletStack extends Stack {
       },
     );
 
+    const lambdaDeleteAccount = new lambdaNodeJs.NodejsFunction(
+      this,
+      "delete-account-lambda",
+      {
+        entry: "lambda/api/deleteAccount.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
+    );
+
     const lambdaGetBalance = new lambdaNodeJs.NodejsFunction(
       this,
       "get-balance-lambda",
@@ -169,11 +179,21 @@ export class QldbWalletStack extends Stack {
       },
     );
 
-    const lambdaAddPendingTransaction = new lambdaNodeJs.NodejsFunction(
+    const lambdaAddGradualTransaction = new lambdaNodeJs.NodejsFunction(
       this,
-      "add-pending-transaction-lambda",
+      "add-gradual-transaction-lambda",
       {
-        entry: "lambda/api/addPendingTransaction.ts",
+        entry: "lambda/api/addGradualTransaction.ts",
+        role: lambdaQldbRole,
+        ...nodeJsFunctionProps,
+      },
+    );
+
+    const lambdaCloseGradualTransaction = new lambdaNodeJs.NodejsFunction(
+      this,
+      "close-gradual-transaction-lambda",
+      {
+        entry: "lambda/api/closeGradualTransaction.ts",
         role: lambdaQldbRole,
         ...nodeJsFunctionProps,
       },
@@ -236,6 +256,12 @@ export class QldbWalletStack extends Stack {
       new apigw.LambdaIntegration(lambdaCreateAccount),
     );
 
+    const createDeleteRsc = api.root.addResource("deleteAccount");
+    createDeleteRsc.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(lambdaDeleteAccount),
+    );
+
     const getBalanceRsc = api.root
       .addResource("getBalance")
       .addResource("{accountId}");
@@ -256,12 +282,20 @@ export class QldbWalletStack extends Stack {
       new apigw.LambdaIntegration(lambdaTransferFunds),
     );
 
-    const addPendingTransactionRsc = api.root.addResource(
-      "addPendingTransaction",
+    const addGradualTransactionRsc = api.root.addResource(
+      "addGradualTransaction",
     );
-    addPendingTransactionRsc.addMethod(
+    addGradualTransactionRsc.addMethod(
       "POST",
-      new apigw.LambdaIntegration(lambdaAddPendingTransaction),
+      new apigw.LambdaIntegration(lambdaAddGradualTransaction),
+    );
+
+    const closeGradualTransactionRsc = api.root.addResource(
+      "closeGradualTransaction",
+    );
+    closeGradualTransactionRsc.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(lambdaCloseGradualTransaction),
     );
 
     const getTransactionsRsc = api.root

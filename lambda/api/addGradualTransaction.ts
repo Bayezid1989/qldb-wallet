@@ -6,7 +6,7 @@ import {
   returnError,
   returnResponse,
 } from "../util/util";
-import { TX_STATUS, TX_TYPE } from "../util/constant";
+import { TX_STATUS } from "../util/constant";
 import { config } from "../../config";
 
 const { QLDB_TABLE_NAME } = config;
@@ -17,7 +17,6 @@ const qldbDriver = initQldbDriver();
 const appendTransaction = async (
   accountId: string,
   amount: number,
-  type: string,
   requestId: string,
   executor: TransactionExecutor,
 ) => {
@@ -32,25 +31,23 @@ const appendTransaction = async (
     );
   }
 
-  console.info(
-    `Adding pending ${type} transaction with ${amount} for account ${accountId}`,
-  );
+  console.info(`Adding transaction with ${amount} for account ${accountId}`);
   const status = TX_STATUS.REQUESTED;
 
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}"
-    SET txAmount = NULL, txFrom = NULL, txTo = NULL, txType = NULL, txRequestId = NULL, pendingTxs = ?
+    SET lastTx = ?, pendingTxs = ?
     WHERE accountId = ?`,
-    obj.pendingTxs.concat({ amount, type, requestId, status }),
+    { amount, from: null, to: null, status, requestId },
+    obj.pendingTxs.concat({ amount, requestId, status }),
     accountId,
   );
 
   return returnResponse({
     accountId,
     amount,
-    type,
     requestId,
-    status,
+    txStatus: status,
   });
 };
 
@@ -67,31 +64,15 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (
     body.accountId &&
     body.requestId &&
-    body.type &&
-    typeof body.amount === "number"
+    typeof body.amount === "number" &&
+    body.amount !== 0
   ) {
-    if (
-      body.type !== TX_TYPE.WITHDRAW_TO_BANK &&
-      body.type !== TX_TYPE.DEPOSIT_FROM_WALLET
-    ) {
-      return returnError(`Wrong transaction type ${body.type}`, 400);
-    }
-    if (
-      (body.amount > 0 && body.type === TX_TYPE.WITHDRAW_TO_BANK) ||
-      (body.amount < 0 && body.type === TX_TYPE.DEPOSIT_FROM_WALLET)
-    ) {
-      return returnError(
-        `Transaction type ${body.type} mismatches amount ${body.amount}`,
-        400,
-      );
-    }
     try {
       const res = await qldbDriver.executeLambda(
         (executor: TransactionExecutor) =>
           appendTransaction(
             body.accountId,
             body.amount,
-            body.type,
             body.requestId,
             executor,
           ),
@@ -101,9 +82,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       return returnError(error.message, 500);
     }
   } else {
-    return returnError(
-      "accountId, amount, type or requestId not specified",
-      400,
-    );
+    return returnError("accountId, amount or requestId not specified", 400);
   }
 };
