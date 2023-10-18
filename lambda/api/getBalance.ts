@@ -4,7 +4,7 @@ import {
   initQldbDriver,
   returnError,
   returnResponse,
-  checkGetBalances,
+  getValidBalances,
 } from "../util/util";
 
 // Initialize the driver
@@ -15,7 +15,7 @@ const queryBalance = async (
   executor: TransactionExecutor,
 ) => {
   console.info(`Looking up balance for account ${accountId}`);
-  const obj = await checkGetBalances(accountId, executor);
+  const obj = await getValidBalances(accountId, executor);
   if ("statusCode" in obj) return obj; // Error object
 
   return returnResponse({
@@ -29,16 +29,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   console.debug(`Event received: ${JSON.stringify(event)}`);
   const accountId = event.pathParameters?.accountId;
 
-  if (accountId) {
-    try {
-      const res = await qldbDriver.executeLambda((executor) =>
-        queryBalance(accountId, executor),
-      );
-      return res;
-    } catch (error: any) {
-      return returnError(error.message, 500);
-    }
-  } else {
-    return returnError("accountId not specified", 400);
+  if (typeof accountId !== "string") {
+    return returnError("accountId not specified or invalid", 400);
+  }
+
+  try {
+    const res = await qldbDriver.executeLambda((executor) =>
+      queryBalance(accountId, executor),
+    );
+    return res;
+  } catch (error: any) {
+    return returnError(error.message, 500);
   }
 };

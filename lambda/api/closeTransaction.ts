@@ -1,12 +1,12 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import {
-  checkGetBalances,
+  getValidBalances,
   initQldbDriver,
   returnError,
   returnResponse,
 } from "../util/util";
-import { TX_STATUS } from "../util/constant";
+import { ISO8601_REGEX, TX_STATUS } from "../util/constant";
 import { config } from "../../config";
 
 const { QLDB_TABLE_NAME } = config;
@@ -16,18 +16,20 @@ const qldbDriver = initQldbDriver();
 
 const closeTransaction = async (
   accountId: string,
-  requestId: string,
+  requestTime: string,
   status: keyof typeof TX_STATUS,
   executor: TransactionExecutor,
 ) => {
-  const obj = await checkGetBalances(accountId, executor); // Omit checking requestId
+  const obj = await getValidBalances(accountId, executor); // Omit checking requestTime
   if ("statusCode" in obj) return obj; // Error object
 
-  const txIndex = obj.pendingTxs.findIndex((tx) => tx.requestId === requestId);
+  const txIndex = obj.pendingTxs.findIndex(
+    (tx) => tx.requestTime === requestTime,
+  );
   if (txIndex === -1) {
-    return returnError(`Transaction ${requestId} not found`, 400);
+    return returnError(`Transaction ${requestTime} not found`, 400);
   }
-  const [tx] = obj.pendingTxs.splice(txIndex, 1);
+  const [tx] = obj.pendingTxs.splice(txIndex, 1); // Remove tx from pending
 
   console.info(
     `Closing transaction to ${status} with ${tx.amount} for account ${accountId}`,
@@ -40,7 +42,13 @@ const closeTransaction = async (
       SET balance = ?, lastTx = ?, pendingTxs = ?
       WHERE accountId = ?`,
     newBalance,
-    { ...tx, from: null, to: null },
+    {
+      amount: tx.amount,
+      requestTime: tx.requestTime,
+      status,
+      from: null,
+      to: null,
+    },
     obj.pendingTxs,
     accountId,
   );
@@ -50,7 +58,7 @@ const closeTransaction = async (
     oldBalance: obj.balance,
     newBalance,
     amount: tx.amount,
-    requestId,
+    requestTime,
     txStatus: status,
   });
 };
@@ -64,29 +72,29 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   } catch (error: any) {
     return returnError(error.message, 400);
   }
+  if (
+    typeof body.accountId !== "string" ||
+    !ISO8601_REGEX.test(body.requestTime) ||
+    (body.status !== TX_STATUS.CANCELED && body.status !== TX_STATUS.COMMITED)
+  ) {
+    return returnError(
+      "accountId requestTime or status not specified or invalid",
+      400,
+    );
+  }
 
-  if (body.accountId && body.requestId && body.status) {
-    if (
-      body.status !== TX_STATUS.CANCELED &&
-      body.status !== TX_STATUS.COMMITED
-    ) {
-      return returnError(`Wrong transaction status ${body.status}`, 400);
-    }
-    try {
-      const res = await qldbDriver.executeLambda(
-        (executor: TransactionExecutor) =>
-          closeTransaction(
-            body.accountId,
-            body.requestId,
-            body.status,
-            executor,
-          ),
-      );
-      return res;
-    } catch (error: any) {
-      return returnError(error.message, 500);
-    }
-  } else {
-    return returnError("accountId or requestId not specified", 400);
+  try {
+    const res = await qldbDriver.executeLambda(
+      (executor: TransactionExecutor) =>
+        closeTransaction(
+          body.accountId,
+          body.requestTime,
+          body.status,
+          executor,
+        ),
+    );
+    return res;
+  } catch (error: any) {
+    return returnError(error.message, 500);
   }
 };

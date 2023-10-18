@@ -6,15 +6,16 @@ This is NodeJs(Typescript) Digital Wallet API Project based on [AWS serverless-w
 
 Get APIs require GET method with pathParameters, while others require POST method with body.
 The **body** of the request must be a JSON object with the following attributes:
+"requestTime" works as idempotency key and must be specified by client side.
 
 - /getBalance(GET): `/{accountId}`
-- /getTransactions(GET): `/{accountId}?afterDate={ISO8601 string}&beforeDate={ISO8601 string}`
+- /getTransactions(GET): `/{accountId}?afterTime={timestamp}&beforeTime={timestamp}`
 - /createAccount(POST): `{ "accountId": <string> }`
 - /deleteAccount(POST): `{ "accountId": <string> }`
-- /updateBalance(POST): `{ "accountId": <string>, "amount": <number>, requestId: <string> }`
-- /transferFunds(POST): `{ "fromAccountId": <string>, "toAccountId": <string>, "amount": <number>, requestId: <string> }`
-- /addTransaction(POST): `{ "accountId": <string>, "amount": <number>, requestId: <string> }`
-- /closeTransaction(POST): `{ "accountId": <string>, requestId: <string>, status: <string> }`
+- /updateBalance(POST): `{ "accountId": <string>, "amount": <number>, requestTime: <ISO8601 string> }`
+- /transferFunds(POST): `{ "fromAccountId": <string>, "toAccountId": <string>, "amount": <number>, requestTime: <ISO8601 string> }`
+- /addTransaction(POST): `{ "accountId": <string>, "amount": <number>, requestTime: <ISO8601 string> }`
+- /closeTransaction(POST): `{ "accountId": <string>, requestTime: <ISO8601 string>, status: <string> }`
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 

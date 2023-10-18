@@ -24,14 +24,14 @@ const deleteAccount = async (
 
   if (!firstRecord) {
     return returnError(`Account ${accountId} doesn't exist`, 400);
-  } else {
-    console.log(`Deleting account ${accountId}`);
-    await executor.execute(
-      `DELETE FROM "${QLDB_TABLE_NAME}"
-      WHERE accountId = ?`,
-      accountId,
-    );
   }
+
+  console.log(`Deleting account ${accountId}`);
+  await executor.execute(
+    `DELETE FROM "${QLDB_TABLE_NAME}"
+      WHERE accountId = ?`,
+    accountId,
+  );
 
   return returnResponse({ accountId });
 };
@@ -46,16 +46,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (body.accountId) {
-    try {
-      const res = await qldbDriver.executeLambda((executor) =>
-        deleteAccount(body.accountId, executor),
-      );
-      return res;
-    } catch (error: any) {
-      return returnError(error.message, 500);
-    }
-  } else {
-    return returnError("accountId not specified", 400);
+  if (typeof body.accountId !== "string") {
+    return returnError("accountId not specified or invalid", 400);
+  }
+
+  try {
+    const res = await qldbDriver.executeLambda((executor) =>
+      deleteAccount(body.accountId, executor),
+    );
+    return res;
+  } catch (error: any) {
+    return returnError(error.message, 500);
   }
 };

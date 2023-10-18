@@ -1,12 +1,12 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import {
-  checkGetBalances,
+  getValidBalances,
   initQldbDriver,
   returnError,
   returnResponse,
 } from "../util/util";
-import { TX_STATUS } from "../util/constant";
+import { ISO8601_REGEX, TX_STATUS } from "../util/constant";
 import { config } from "../../config";
 
 const { QLDB_TABLE_NAME } = config;
@@ -17,37 +17,35 @@ const qldbDriver = initQldbDriver();
 const appendTransaction = async (
   accountId: string,
   amount: number,
-  requestId: string,
+  requestTime: string,
   executor: TransactionExecutor,
 ) => {
-  const obj = await checkGetBalances(accountId, executor, requestId, amount);
+  const obj = await getValidBalances(accountId, executor, requestTime, amount);
   if ("statusCode" in obj) return obj; // Error object
 
-  const tx = obj.pendingTxs.find((tx) => tx.requestId === requestId);
-  if (tx) {
+  if (obj.pendingTxs.some((tx) => tx.requestTime === requestTime)) {
     return returnError(
-      `Transaction Request ${requestId} is already ${tx.status}`,
+      `Transaction Request ${requestTime} is already requested`,
       400,
     );
   }
 
   console.info(`Adding transaction with ${amount} for account ${accountId}`);
-  const status = TX_STATUS.REQUESTED;
 
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}"
     SET lastTx = ?, pendingTxs = ?
     WHERE accountId = ?`,
-    { amount, from: null, to: null, status, requestId },
-    obj.pendingTxs.concat({ amount, requestId, status }),
+    { amount, from: null, to: null, status: TX_STATUS.REQUESTED, requestTime },
+    obj.pendingTxs.concat({ amount, requestTime }),
     accountId,
   );
 
   return returnResponse({
     accountId,
     amount,
-    requestId,
-    txStatus: status,
+    requestTime,
+    txStatus: TX_STATUS.REQUESTED,
   });
 };
 
@@ -62,26 +60,29 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
 
   if (
-    body.accountId &&
-    body.requestId &&
-    typeof body.amount === "number" &&
-    body.amount !== 0
+    typeof body.accountId !== "string" ||
+    !ISO8601_REGEX.test(body.requestTime) ||
+    typeof body.amount !== "number" ||
+    body.amount === 0
   ) {
-    try {
-      const res = await qldbDriver.executeLambda(
-        (executor: TransactionExecutor) =>
-          appendTransaction(
-            body.accountId,
-            body.amount,
-            body.requestId,
-            executor,
-          ),
-      );
-      return res;
-    } catch (error: any) {
-      return returnError(error.message, 500);
-    }
-  } else {
-    return returnError("accountId, amount or requestId not specified", 400);
+    return returnError(
+      "accountId, amount or requestTime not specified or invalid",
+      400,
+    );
+  }
+
+  try {
+    const res = await qldbDriver.executeLambda(
+      (executor: TransactionExecutor) =>
+        appendTransaction(
+          body.accountId,
+          body.amount,
+          body.requestTime,
+          executor,
+        ),
+    );
+    return res;
+  } catch (error: any) {
+    return returnError(error.message, 500);
   }
 };

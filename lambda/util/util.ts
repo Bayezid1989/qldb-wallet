@@ -50,49 +50,27 @@ export const ionNumber = (ion: dom.Value | null | undefined, key: string) =>
   isIonNull(ion, key) ? null : ion?.get(key)?.numberValue();
 
 export const ionTimestamp = (ion: dom.Value | null | undefined, key: string) =>
-  isIonNull(ion, key) ? null : ion?.get(key)?.timestampValue();
+  isIonNull(ion, key) ? null : ion?.get(key)?.timestampValue()?.getDate();
 
 export const ionArray = (ion: dom.Value | null | undefined, key: string) =>
   isIonNull(ion, key) ? null : ion?.get(key)?.elements();
 
-export const parseBaseTx = (struct: dom.Value | null | undefined) => ({
-  amount: ionNumber(struct, "amount"),
-  requestId: ionString(struct, "requestId"),
-  status: ionString(struct, "status"),
+export const parseBaseTx = (txStruct: dom.Value | null | undefined) => ({
+  amount: ionNumber(txStruct, "amount"),
+  requestTime: ionString(txStruct, "requestTime"),
 });
+
+export const getLastTxRequestTime = (record: dom.Value) =>
+  parseBaseTx(record?.get("lastTx")).requestTime;
 
 const parsePendingTxs = (data: dom.Value | null | undefined) =>
   ionArray(data, "pendingTxs")?.map(parseBaseTx) || [];
 
-export const checkGetBalances = async (
+export const checkAvailableBalances = (
+  record: dom.Value,
   accountId: string,
-  executor: TransactionExecutor,
-  requestId?: string,
   amount?: number,
 ) => {
-  console.info(`Retrieving account for id ${accountId}`);
-  const res = await executor.execute(
-    `SELECT accountId, balance, lastTx, pendingTxs
-    FROM "${QLDB_TABLE_NAME}"
-    WHERE accountId = ?`,
-    accountId,
-  );
-  const records: dom.Value[] = res.getResultList();
-
-  if (!records.length) {
-    return returnError(`Account ${accountId} not found`, 400);
-  }
-  if (records.length > 1) {
-    return returnError(`More than one account with user id ${accountId}`, 500);
-  }
-  const record = records[0];
-  if (requestId && parseBaseTx(record).requestId === requestId) {
-    return returnError(
-      `Transaction Request ${requestId} is already processed`,
-      400,
-    );
-  }
-
   const pendingTxs = parsePendingTxs(record);
   const pendingMinus =
     pendingTxs.reduce((sum, cur) => {
@@ -115,12 +93,45 @@ export const checkGetBalances = async (
   return { balance, availableBalance, pendingTxs };
 };
 
+export const getValidBalances = async (
+  accountId: string,
+  executor: TransactionExecutor,
+  requestTime?: string,
+  amount?: number,
+) => {
+  console.info(`Retrieving account for id ${accountId}`);
+
+  const res = await executor.execute(
+    `SELECT accountId, balance, lastTx, pendingTxs
+    FROM "${QLDB_TABLE_NAME}"
+    WHERE accountId = ?`,
+    accountId,
+  );
+  const records: dom.Value[] = res.getResultList();
+
+  if (!records.length) {
+    return returnError(`Account ${accountId} not found`, 400);
+  }
+  if (records.length > 1) {
+    return returnError(`More than one account with user id ${accountId}`, 500);
+  }
+  const record = records[0];
+  if (requestTime && getLastTxRequestTime(record) === requestTime) {
+    return returnError(
+      `Transaction Request ${requestTime} is already processed`,
+      400,
+    );
+  }
+  return checkAvailableBalances(record, accountId, amount);
+};
+
 export const parseIonRecord = (ionRecord: dom.Value | null) => {
   const payload = ionRecord?.get("payload");
   const tableInfo = payload?.get("tableInfo");
   const revision = payload?.get("revision");
   const data = revision?.get("data");
   const metadata = revision?.get("metadata");
+  const lastTx = data?.get("lastTx");
 
   return {
     tableInfo: {
@@ -134,9 +145,10 @@ export const parseIonRecord = (ionRecord: dom.Value | null) => {
 
         // Last transaction data
         lastTx: {
-          ...parseBaseTx(data),
-          from: ionString(data, "from"),
-          to: ionString(data, "to"),
+          ...parseBaseTx(lastTx),
+          status: ionString(lastTx, "status"),
+          from: ionString(lastTx, "from"),
+          to: ionString(lastTx, "to"),
         },
         pendingTxs: parsePendingTxs(data),
       },

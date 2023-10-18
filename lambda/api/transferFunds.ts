@@ -2,15 +2,15 @@ import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import type { dom } from "ion-js";
 import {
+  checkAvailableBalances,
+  getLastTxRequestTime,
   initQldbDriver,
-  ionNumber,
   ionString,
-  parseBaseTx,
   returnError,
   returnResponse,
 } from "../util/util";
 import { config } from "../../config";
-import { TX_STATUS } from "../util/constant";
+import { ISO8601_REGEX, TX_STATUS } from "../util/constant";
 
 const { QLDB_TABLE_NAME } = config;
 
@@ -21,13 +21,13 @@ const transferFunds = async (
   fromAccountId: string,
   toAccountId: string,
   amount: number,
-  requestId: string,
+  requestTime: string,
   executor: TransactionExecutor,
 ) => {
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
   console.info(`Retrieving accounts ${idsString}`);
   const res = await executor.execute(
-    `SELECT accountId, balance, lastTx
+    `SELECT accountId, balance, lastTx, 
     FROM "${QLDB_TABLE_NAME}"
     WHERE accountId IN (?, ?)`,
     fromAccountId,
@@ -52,7 +52,7 @@ const transferFunds = async (
     } else if (ionString(record, "accountId") === toAccountId) {
       toAccount = record;
     }
-    if (parseBaseTx(record).requestId === requestId) {
+    if (getLastTxRequestTime(record) === requestTime) {
       hasSameRequestId = true;
     }
   });
@@ -65,18 +65,13 @@ const transferFunds = async (
   }
   if (hasSameRequestId) {
     return returnError(
-      `Transaction Request ${requestId} already processed`,
+      `Transaction Request ${requestTime} already processed`,
       400,
     );
   }
 
-  const fromBalance = ionNumber(fromAccount, "balance") || 0;
-  if (fromBalance - amount < 0) {
-    return returnError(
-      `Funds too low. Cannot deduct ${amount} from account ${fromAccountId}`,
-      400,
-    );
-  }
+  const obj = checkAvailableBalances(fromAccount, fromAccountId, amount);
+  if ("statusCode" in obj) return obj; // Error object
 
   console.info(`Transfering with ${amount} for accounts${idsString}`);
 
@@ -91,7 +86,7 @@ const transferFunds = async (
       from: fromAccountId,
       to: toAccountId,
       status: TX_STATUS.IMMEDIATE,
-      requestId,
+      requestTime,
     },
     fromAccountId,
   );
@@ -107,7 +102,7 @@ const transferFunds = async (
       from: fromAccountId,
       to: toAccountId,
       status: TX_STATUS.IMMEDIATE,
-      requestId,
+      requestTime,
     },
     toAccountId,
   );
@@ -116,7 +111,7 @@ const transferFunds = async (
     fromAccountId,
     toAccountId,
     amount,
-    requestId,
+    requestTime,
   });
 };
 
@@ -131,29 +126,30 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
 
   if (
-    body.fromAccountId &&
-    body.toAccountId &&
-    body.requestId &&
-    body.amount > 0
+    typeof body.fromAccountId !== "string" ||
+    typeof body.toAccountId !== "string" ||
+    !ISO8601_REGEX.test(body.requestTime) ||
+    typeof body.amount !== "number" ||
+    body.amount <= 0
   ) {
-    try {
-      const res = await qldbDriver.executeLambda((executor) =>
-        transferFunds(
-          body.fromAccountId,
-          body.toAccountId,
-          body.amount,
-          body.requestId,
-          executor,
-        ),
-      );
-      return res;
-    } catch (error: any) {
-      return returnError(error.message, 500);
-    }
-  } else {
     return returnError(
-      "accountId, amount or requestId not specified, or amount is less than zero",
+      "accountId, amount or requestTime not specified or invalid",
       400,
     );
+  }
+
+  try {
+    const res = await qldbDriver.executeLambda((executor) =>
+      transferFunds(
+        body.fromAccountId,
+        body.toAccountId,
+        body.amount,
+        body.requestTime,
+        executor,
+      ),
+    );
+    return res;
+  } catch (error: any) {
+    return returnError(error.message, 500);
   }
 };

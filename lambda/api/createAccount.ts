@@ -24,17 +24,18 @@ const createAccount = async (
 
   if (firstRecord) {
     return returnError(`Account ${accountId} already exists`, 400);
-  } else {
-    console.log(`Creating account with id ${accountId}`);
-    await executor.execute(`INSERT INTO "${QLDB_TABLE_NAME}" ?`, {
-      accountId,
-      balance: 0,
-      lastTx: null,
-      pendingTxs: [],
-    });
   }
 
-  return returnResponse({ accountId });
+  console.log(`Creating account with id ${accountId}`);
+  const createdAt = new Date();
+  await executor.execute(`INSERT INTO "${QLDB_TABLE_NAME}" ?`, {
+    accountId,
+    balance: 0,
+    lastTx: null,
+    pendingTxs: [],
+    createdAt,
+  });
+  return returnResponse({ accountId, createdAt });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -47,16 +48,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (body.accountId) {
-    try {
-      const res = await qldbDriver.executeLambda((executor) =>
-        createAccount(body.accountId, executor),
-      );
-      return res;
-    } catch (error: any) {
-      return returnError(error.message, 500);
-    }
-  } else {
-    return returnError("accountId not specified", 400);
+  if (typeof body.accountId !== "string") {
+    return returnError("accountId not specified or invalid", 400);
+  }
+
+  try {
+    const res = await qldbDriver.executeLambda((executor) =>
+      createAccount(body.accountId, executor),
+    );
+    return res;
+  } catch (error: any) {
+    return returnError(error.message, 500);
   }
 };
