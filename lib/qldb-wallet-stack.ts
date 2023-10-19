@@ -91,14 +91,14 @@ export class QldbWalletStack extends Stack {
       // timeToLiveAttribute: "expire_timestamp",
     });
 
-    // Comment out if LSI is definitely not needed
-    ddbTxTable.addLocalSecondaryIndex({
-      indexName: "txTime-index",
-      sortKey: {
-        name: "txTime",
-        type: dynamodb.AttributeType.STRING,
-      },
-    });
+    // Uncomment out if you use pending transactions and query order by txTime, this must be created when creating table
+    // ddbTxTable.addLocalSecondaryIndex({
+    //   indexName: "txTime-index",
+    //   sortKey: {
+    //     name: "txTime",
+    //     type: dynamodb.AttributeType.STRING,
+    //   },
+    // });
 
     // Create IAM Roles and policies for Lambda functions
     const qldbAccessPolicy = new iam.PolicyStatement({
