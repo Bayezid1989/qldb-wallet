@@ -24,16 +24,17 @@ const queryTransactions = async (
     ":accountId": accountId,
   };
   if (afterTime && beforeTime) {
-    condition += " AND requestTime#txTime BETWEEN :afterTime AND :beforeTime";
+    condition += " AND requestTxTimestamp BETWEEN :afterTime AND :beforeTime";
     attributeValues[`:afterTime`] = afterTime;
     attributeValues[`:beforeTime`] = `${beforeTime}#9999999999999`;
   } else if (afterTime) {
-    condition += " AND requestTime#txTime >= :afterTime";
+    condition += " AND requestTxTimestamp >= :afterTime";
     attributeValues[`:afterTime`] = afterTime;
   } else if (beforeTime) {
-    condition += " AND requestTime#txTime <= :beforeTime";
+    condition += " AND requestTxTimestamp <= :beforeTime";
     attributeValues[`:beforeTime`] = `${beforeTime}#9999999999999`;
   }
+  // TODO: Add txTime filter
 
   const command = new QueryCommand({
     TableName: DDB_TABLE_NAME,

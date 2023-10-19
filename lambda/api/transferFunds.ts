@@ -1,13 +1,14 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
-import type { APIGatewayProxyHandler } from "aws-lambda";
+import type { APIGatewayProxyHandler, APIGatewayProxyResult } from "aws-lambda";
 import type { dom } from "ion-js";
 import {
+  FullTx,
   checkAvailableBalances,
-  getLastTxRequestTime,
   initQldbDriver,
   ionString,
   returnError,
   returnResponse,
+  validateRecord,
 } from "../util/util";
 import { config } from "../../config";
 import { ISO8601_REGEX, TX_STATUS } from "../util/constant";
@@ -27,7 +28,7 @@ const transferFunds = async (
   const idsString = `(From: ${fromAccountId}, To: ${toAccountId})`;
   console.info(`Retrieving accounts ${idsString}`);
   const res = await executor.execute(
-    `SELECT accountId, balance, lastTx, 
+    `SELECT accountId, balance, lastTx, deletedAt
     FROM "${QLDB_TABLE_NAME}"
     WHERE accountId IN (?, ?)`,
     fromAccountId,
@@ -44,7 +45,7 @@ const transferFunds = async (
 
   let fromAccount: dom.Value | undefined;
   let toAccount: dom.Value | undefined;
-  let hasSameRequestId = false;
+  let error: APIGatewayProxyResult | undefined;
 
   records.forEach((record) => {
     if (ionString(record, "accountId") === fromAccountId) {
@@ -52,8 +53,13 @@ const transferFunds = async (
     } else if (ionString(record, "accountId") === toAccountId) {
       toAccount = record;
     }
-    if (getLastTxRequestTime(record) === requestTime) {
-      hasSameRequestId = true;
+    const obj = validateRecord(
+      record,
+      ionString(record, "accountId") || "No accountId",
+      requestTime,
+    );
+    if ("statusCode" in obj) {
+      error = obj;
     }
   });
 
@@ -63,17 +69,20 @@ const transferFunds = async (
   if (!toAccount) {
     return returnError(`To account ${toAccountId} not found.`, 400);
   }
-  if (hasSameRequestId) {
-    return returnError(
-      `Transaction Request ${requestTime} already processed`,
-      400,
-    );
-  }
+  if (error) return error;
 
   const obj = checkAvailableBalances(fromAccount, fromAccountId, amount);
   if ("statusCode" in obj) return obj; // Error object
 
   console.info(`Transfering with ${amount} for accounts${idsString}`);
+
+  const fromTx: FullTx = {
+    amount: -amount,
+    from: fromAccountId,
+    to: toAccountId,
+    status: TX_STATUS.IMMEDIATE,
+    requestTime,
+  };
 
   // Deduct the amount from account
   await executor.execute(
@@ -81,15 +90,17 @@ const transferFunds = async (
     SET balance = balance - ?, lastTx = ?
     WHERE accountId = ?`,
     amount,
-    {
-      amount: -amount,
-      from: fromAccountId,
-      to: toAccountId,
-      status: TX_STATUS.IMMEDIATE,
-      requestTime,
-    },
+    fromTx,
     fromAccountId,
   );
+
+  const toTx: FullTx = {
+    amount,
+    from: fromAccountId,
+    to: toAccountId,
+    status: TX_STATUS.IMMEDIATE,
+    requestTime,
+  };
 
   // Add the amount to account
   await executor.execute(
@@ -97,13 +108,7 @@ const transferFunds = async (
     SET balance = balance + ?, lastTx = ?
     WHERE accountId = ?`,
     amount,
-    {
-      amount,
-      from: fromAccountId,
-      to: toAccountId,
-      status: TX_STATUS.IMMEDIATE,
-      requestTime,
-    },
+    toTx,
     toAccountId,
   );
 

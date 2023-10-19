@@ -1,5 +1,6 @@
 import {
   QldbDriver,
+  Result,
   RetryConfig,
   TransactionExecutor,
 } from "amazon-qldb-driver-nodejs";
@@ -60,8 +61,14 @@ export const parseBaseTx = (txStruct: dom.Value | null | undefined) => ({
   requestTime: ionString(txStruct, "requestTime"),
 });
 
-export const getLastTxRequestTime = (record: dom.Value) =>
-  parseBaseTx(record?.get("lastTx")).requestTime;
+const parseFullTx = (txStruct: dom.Value | null | undefined) => ({
+  ...parseBaseTx(txStruct),
+  status: ionString(txStruct, "status"),
+  from: ionString(txStruct, "from"),
+  to: ionString(txStruct, "to"),
+});
+
+export type FullTx = ReturnType<typeof parseFullTx>;
 
 const parsePendingTxs = (data: dom.Value | null | undefined) =>
   ionArray(data, "pendingTxs")?.map(parseBaseTx) || [];
@@ -93,6 +100,55 @@ export const checkAvailableBalances = (
   return { balance, availableBalance, pendingTxs };
 };
 
+export const validateRecord = (
+  record: dom.Value,
+  accountId: string,
+  requestTime?: string,
+) => {
+  if (ionTimestamp(record, "deletedAt")) {
+    return returnError(`Account ${accountId} already deleted`, 400);
+  }
+  if (requestTime) {
+    const lastReqTime = parseBaseTx(record?.get("lastTx")).requestTime;
+    if (lastReqTime === requestTime) {
+      return returnError(
+        `Transaction request ${requestTime} already processed`,
+        400,
+      );
+    }
+    if (lastReqTime) {
+      const lastTime = new Date(lastReqTime).getTime();
+      const thisTime = new Date(requestTime).getTime();
+      if (thisTime < lastTime) {
+        return returnError(
+          `Transaction request time ${requestTime} must be later than the last tx time ${lastReqTime}`,
+          400,
+        );
+      }
+    }
+  }
+  return record;
+};
+
+export const getValidRecord = (
+  res: Result,
+  accountId: string,
+  requestTime?: string,
+) => {
+  const records: dom.Value[] = res.getResultList();
+
+  if (!records.length) {
+    return returnError(`Account ${accountId} not found`, 400);
+  }
+  if (records.length > 1) {
+    return returnError(`More than one account with ${accountId}`, 500);
+  }
+  const record = validateRecord(records[0], accountId, requestTime);
+  if ("statusCode" in record) return record; // Error object
+
+  return record;
+};
+
 export const getValidBalances = async (
   accountId: string,
   executor: TransactionExecutor,
@@ -102,26 +158,14 @@ export const getValidBalances = async (
   console.info(`Retrieving account for id ${accountId}`);
 
   const res = await executor.execute(
-    `SELECT accountId, balance, lastTx, pendingTxs
+    `SELECT accountId, balance, lastTx, pendingTxs, deletedAt
     FROM "${QLDB_TABLE_NAME}"
     WHERE accountId = ?`,
     accountId,
   );
-  const records: dom.Value[] = res.getResultList();
+  const record = getValidRecord(res, accountId, requestTime);
+  if ("statusCode" in record) return record; // Error object
 
-  if (!records.length) {
-    return returnError(`Account ${accountId} not found`, 400);
-  }
-  if (records.length > 1) {
-    return returnError(`More than one account with user id ${accountId}`, 500);
-  }
-  const record = records[0];
-  if (requestTime && getLastTxRequestTime(record) === requestTime) {
-    return returnError(
-      `Transaction Request ${requestTime} is already processed`,
-      400,
-    );
-  }
   return checkAvailableBalances(record, accountId, amount);
 };
 
@@ -144,12 +188,7 @@ export const parseIonRecord = (ionRecord: dom.Value | null) => {
         balance: ionNumber(data, "balance"),
 
         // Last transaction data
-        lastTx: {
-          ...parseBaseTx(lastTx),
-          status: ionString(lastTx, "status"),
-          from: ionString(lastTx, "from"),
-          to: ionString(lastTx, "to"),
-        },
+        lastTx: parseFullTx(lastTx),
         pendingTxs: parsePendingTxs(data),
       },
       metadata: {
@@ -160,34 +199,45 @@ export const parseIonRecord = (ionRecord: dom.Value | null) => {
   };
 };
 
-// Ion record: {
-//   qldbStreamArn: "arn:aws:qldb:ap-northeast-1:670756400362:stream/test-wallet/0FyCS5aYSysK7aD7h8wvp3",
+// Ion record:
+// {
+//   qldbStreamArn: "arn:aws:qldb:ap-northeast-1:670756400362:stream/wallet-ledger/Au1FAL3LsysIxV6ioRJGqI",
 //   recordType: "REVISION_DETAILS",
 //   payload: {
 //     tableInfo: {
 //       tableName: "Wallet",
-//       tableId: "AYj94Ipn0re4Fr2PDgadpl"
+//       tableId: "GZKrbXvDPFm8QtvYNupqo0"
 //     },
 //     revision: {
 //       blockAddress: {
-//         strandId: "A2mzwAutFNnJm2ho9nls4q",
-//         sequenceNo: 711
+//         strandId: "0FyCSjhIEUfC13M6NoNAOh",
+//         sequenceNo: 253
 //       },
-//       hash: {{j5yn00sQj4clTrEN4vka5BrbVjQ+v41wBSqjj9AFveA=}},
+//       hash: {{XivyjUPTBiVmfVofInbO26WOAWxkjEfMuWHG2rPUdZg=}},
 //       data: {
-//         accountId: "user1",
-//         balance: 3000,
-//         txAmount: 500,
-//         txFrom: null,
-//         txTo: "user1",
-//         txType: "DEPOSIT",
-//         txRequestId: "req5"
+//         accountId: "user2",
+//         createdAt: 2023-10-18T13:38:56.329Z,
+//         deletedAt: null,
+//         pendingTxs: [
+//           {
+//             amount: -10,
+//             requestTime: "2023-10-18T13:40:28.121Z"
+//           }
+//         ],
+//         balance: 130,
+//         lastTx: {
+//           amount: 10,
+//           from: null,
+//           to: null,
+//           status: "IMMEDIATE",
+//           requestTime: "2023-10-19T01:40:45.908Z"
+//         }
 //       },
 //       metadata: {
-//         id: "59NbC9MoyMw4vsTsoNROxX",
-//         version: 15,
-//         txTime: 2023-09-25T06:34:30.619Z,
-//         txId: "0007t6JMyzMK2LEscgWJ28"
+//         id: "KWBzbimkHYSBjEgqiAFfIc",
+//         version: 7,
+//         txTime: 2023-10-19T00:33:12.051Z,
+//         txId: "3mDCrAG87Xb4LAXTluxh57"
 //       }
 //     }
 //   }

@@ -15,8 +15,9 @@ const createAccount = async (
 ) => {
   console.info(`Verifying account with id ${accountId} does not exist`);
   const res = await executor.execute(
-    `SELECT accountId FROM "${QLDB_TABLE_NAME}"
-    WHERE accountId = ?`,
+    `SELECT accountId
+    FROM "${QLDB_TABLE_NAME}"
+    WHERE accountId = ?`, // Include deleted account
     accountId,
   );
 
@@ -34,6 +35,7 @@ const createAccount = async (
     lastTx: null,
     pendingTxs: [],
     createdAt,
+    deletedAt: null,
   });
   return returnResponse({ accountId, createdAt });
 };
@@ -48,7 +50,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return returnError(error.message, 400);
   }
 
-  if (typeof body.accountId !== "string") {
+  if (!body.accountId || typeof body.accountId !== "string") {
     return returnError("accountId not specified or invalid", 400);
   }
 

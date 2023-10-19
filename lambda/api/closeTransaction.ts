@@ -1,6 +1,7 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import {
+  FullTx,
   getValidBalances,
   initQldbDriver,
   returnError,
@@ -37,18 +38,19 @@ const closeTransaction = async (
   const newBalance =
     status === "CANCELED" ? obj.balance : obj.balance + (tx.amount || 0);
 
+  const lastTx: FullTx = {
+    amount: tx.amount,
+    requestTime: tx.requestTime,
+    status,
+    from: null,
+    to: null,
+  };
   await executor.execute(
     `UPDATE "${QLDB_TABLE_NAME}"
       SET balance = ?, lastTx = ?, pendingTxs = ?
       WHERE accountId = ?`,
     newBalance,
-    {
-      amount: tx.amount,
-      requestTime: tx.requestTime,
-      status,
-      from: null,
-      to: null,
-    },
+    lastTx,
     obj.pendingTxs,
     accountId,
   );

@@ -89,7 +89,7 @@ export const handler: Handler = async (event) => {
       const ddbItem = {
         ...rest,
         ...lastTx,
-        "requestTime#txTime": sortKey,
+        requestTxTimestamp: sortKey,
         txId,
         txTime: txTime.toISOString(),
         // expireTimestamp: Date.now() + daysToSeconds(Number(EXPIRE_AFTER_DAYS)),

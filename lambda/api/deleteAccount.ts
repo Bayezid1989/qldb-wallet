@@ -1,7 +1,11 @@
 import { TransactionExecutor } from "amazon-qldb-driver-nodejs";
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import type { dom } from "ion-js";
-import { initQldbDriver, returnError, returnResponse } from "../util/util";
+import {
+  getValidRecord,
+  initQldbDriver,
+  returnError,
+  returnResponse,
+} from "../util/util";
 import { config } from "../../config";
 
 const { QLDB_TABLE_NAME } = config;
@@ -15,25 +19,27 @@ const deleteAccount = async (
 ) => {
   console.info(`Verifying account with id ${accountId} exists`);
   const res = await executor.execute(
-    `SELECT accountId FROM "${QLDB_TABLE_NAME}"
+    `SELECT accountId, deletedAt
+    FROM "${QLDB_TABLE_NAME}"
     WHERE accountId = ?`,
     accountId,
   );
-
-  const firstRecord: dom.Value = res.getResultList()[0];
-
-  if (!firstRecord) {
-    return returnError(`Account ${accountId} doesn't exist`, 400);
-  }
+  const record = getValidRecord(res, accountId);
+  if ("statusCode" in record) return record; // Error object
 
   console.log(`Deleting account ${accountId}`);
+
+  const deletedAt = new Date();
   await executor.execute(
-    `DELETE FROM "${QLDB_TABLE_NAME}"
-      WHERE accountId = ?`,
+    `UPDATE "${QLDB_TABLE_NAME}"
+    SET deletedAt = ?, lastTx = ?
+    WHERE accountId = ?`,
+    deletedAt,
+    null, // Set null otherwise transaction will be created
     accountId,
   );
 
-  return returnResponse({ accountId });
+  return returnResponse({ accountId, deletedAt });
 };
 
 export const handler: APIGatewayProxyHandler = async (event) => {
