@@ -34,7 +34,7 @@ const queryTransactions = async (
     condition += " AND requestTxTimestamp <= :beforeTime";
     attributeValues[`:beforeTime`] = `${beforeTime}#9999999999999`;
   }
-  // TODO: Add txTime filter
+  // TODO: Add txTime filter and txTime-index sort
 
   const command = new QueryCommand({
     TableName: DDB_TABLE_NAME,

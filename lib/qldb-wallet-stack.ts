@@ -91,8 +91,9 @@ export class QldbWalletStack extends Stack {
       // timeToLiveAttribute: "expire_timestamp",
     });
 
+    // Comment out if LSI is definitely not needed
     ddbTxTable.addLocalSecondaryIndex({
-      indexName: "txTime_index",
+      indexName: "txTime-index",
       sortKey: {
         name: "txTime",
         type: dynamodb.AttributeType.STRING,
